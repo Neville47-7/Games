@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Breakout</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a1a;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:'Segoe UI',sans-serif;color:#e2e8f0;overflow:hidden}
+.hud{display:flex;gap:30px;margin-bottom:12px;font-size:1rem}
+.hud span{color:#94a3b8}.hud b{color:#ef4444}
+canvas{border:2px solid rgba(124,58,237,0.4);border-radius:8px;cursor:none}
+.msg{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;background:rgba(10,10,26,0.96);padding:32px 48px;border-radius:16px;border:1px solid rgba(124,58,237,0.3);z-index:10}
+.msg h2{font-size:1.8rem;margin-bottom:8px;background:linear-gradient(135deg,#7c3aed,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.msg p{color:#94a3b8;margin-bottom:16px}
+.msg button{padding:10px 28px;border:none;border-radius:24px;background:linear-gradient(135deg,#7c3aed,#06b6d4);color:#fff;font-size:1rem;cursor:pointer;font-weight:600}
+</style>
+</head>
+<body>
+<div class="hud"><span>Score: <b id="score">0</b></span><span>Lives: <b id="lives">3</b></span></div>
+<canvas id="c" width="480" height="400"></canvas>
+<div class="msg" id="startScreen"><h2>🧱 Breakout</h2><p>Move mouse to control paddle. Smash all bricks!</p><button onclick="startGame()">Play</button></div>
+<div class="msg" id="overScreen" style="display:none"><h2 id="overTitle">Game Over</h2><p>Score: <b id="finalScore">0</b></p><button onclick="startGame()">Play Again</button></div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=canvas.width,H=canvas.height;
+const params=new URLSearchParams(window.location.search);
+const DIFF=params.get('diff')||'medium';
+const BCFG={easy:{pw:110,bs:2.5,lives:5},medium:{pw:80,bs:3,lives:3},hard:{pw:55,bs:4,lives:2}};
+const BC=BCFG[DIFF]||BCFG.medium;
+const BRICK_ROWS=5,BRICK_COLS=8,BRICK_W=52,BRICK_H=18,BRICK_PAD=6,BRICK_TOP=40,BRICK_LEFT=(W-BRICK_COLS*(BRICK_W+BRICK_PAD)+BRICK_PAD)/2;
+const ROW_COLORS=['#ef4444','#fb923c','#facc15','#34d399','#06b6d4'];
+let paddle,ball,bricks,score,lives,running,animId;
+
+function startGame(){
+  document.getElementById('startScreen').style.display='none';
+  document.getElementById('overScreen').style.display='none';
+  paddle={x:W/2-BC.pw/2,y:H-30,w:BC.pw,h:12};
+  ball={x:W/2,y:H-50,r:6,dx:BC.bs,dy:-BC.bs};
+  score=0;lives=BC.lives;running=true;
+  bricks=[];
+  for(let r=0;r<BRICK_ROWS;r++)for(let c=0;c<BRICK_COLS;c++)
+    bricks.push({x:BRICK_LEFT+c*(BRICK_W+BRICK_PAD),y:BRICK_TOP+r*(BRICK_H+BRICK_PAD),w:BRICK_W,h:BRICK_H,alive:true,color:ROW_COLORS[r]});
+  updateHUD();
+  if(animId)cancelAnimationFrame(animId);
+  loop();
+}
+function updateHUD(){document.getElementById('score').textContent=score;document.getElementById('lives').textContent=lives;}
+function loop(){
+  if(!running)return;
+  update();draw();animId=requestAnimationFrame(loop);
+}
+function update(){
+  ball.x+=ball.dx;ball.y+=ball.dy;
+  if(ball.x-ball.r<0||ball.x+ball.r>W)ball.dx*=-1;
+  if(ball.y-ball.r<0)ball.dy*=-1;
+  if(ball.y+ball.r>H){
+    lives--;updateHUD();
+    if(lives<=0){running=false;document.getElementById('overTitle').textContent='Game Over';document.getElementById('finalScore').textContent=score;document.getElementById('overScreen').style.display='block';if(window.parent!==window)window.parent.postMessage({type:'score-submit',gameId:'breakout',score:score},'*');return;}
+    ball.x=W/2;ball.y=H-50;ball.dx=BC.bs*(Math.random()>0.5?1:-1);ball.dy=-BC.bs;
+  }
+  // Paddle
+  if(ball.dy>0&&ball.y+ball.r>=paddle.y&&ball.x>=paddle.x&&ball.x<=paddle.x+paddle.w&&ball.y+ball.r<=paddle.y+paddle.h+4){
+    ball.dy*=-1;ball.dx+=(ball.x-(paddle.x+paddle.w/2))*0.08;ball.y=paddle.y-ball.r;
+  }
+  // Bricks
+  for(const b of bricks){
+    if(!b.alive)continue;
+    if(ball.x+ball.r>b.x&&ball.x-ball.r<b.x+b.w&&ball.y+ball.r>b.y&&ball.y-ball.r<b.y+b.h){
+      b.alive=false;ball.dy*=-1;score+=10;updateHUD();
+    }
+  }
+  if(bricks.every(b=>!b.alive)){running=false;document.getElementById('overTitle').textContent='🎉 You Win!';document.getElementById('finalScore').textContent=score;document.getElementById('overScreen').style.display='block';if(window.parent!==window)window.parent.postMessage({type:'score-submit',gameId:'breakout',score:score},'*');}
+}
+function draw(){
+  ctx.fillStyle='#0f0f2a';ctx.fillRect(0,0,W,H);
+  // Bricks
+  for(const b of bricks){
+    if(!b.alive)continue;
+    ctx.fillStyle=b.color;ctx.shadowColor=b.color;ctx.shadowBlur=8;
+    ctx.beginPath();ctx.roundRect(b.x,b.y,b.w,b.h,4);ctx.fill();
+  }
+  ctx.shadowBlur=0;
+  // Paddle
+  ctx.fillStyle='#7c3aed';ctx.shadowColor='#7c3aed';ctx.shadowBlur=12;
+  ctx.beginPath();ctx.roundRect(paddle.x,paddle.y,paddle.w,paddle.h,6);ctx.fill();
+  ctx.shadowBlur=0;
+  // Ball
+  ctx.fillStyle='#fff';ctx.shadowColor='#fff';ctx.shadowBlur=15;
+  ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+}
+canvas.addEventListener('mousemove',e=>{const r=canvas.getBoundingClientRect();paddle.x=e.clientX-r.left-paddle.w/2;paddle.x=Math.max(0,Math.min(W-paddle.w,paddle.x));});
+</script>
+</body>
+</html>

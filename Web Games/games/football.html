@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Football - Penalty Shootout</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a1a;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:'Segoe UI',sans-serif;color:#e2e8f0;overflow:hidden;user-select:none}
+.scoreboard{display:flex;gap:40px;margin-bottom:16px;align-items:center}
+.team{text-align:center}
+.team .name{font-size:0.8rem;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;margin-bottom:4px}
+.team .score{font-size:2.5rem;font-weight:800}
+.team.you .score{color:#06b6d4}
+.team.ai .score{color:#f472b6}
+.vs{font-size:1.2rem;color:#64748b}
+.round-info{font-size:0.9rem;color:#94a3b8;margin-bottom:12px}
+canvas{border-radius:8px;cursor:crosshair}
+.msg{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;background:rgba(10,10,26,0.96);padding:32px 48px;border-radius:16px;border:1px solid rgba(34,197,94,0.3);z-index:10}
+.msg h2{font-size:1.8rem;margin-bottom:8px;background:linear-gradient(135deg,#22c55e,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.msg p{color:#94a3b8;margin-bottom:16px}
+.msg button{padding:10px 28px;border:none;border-radius:24px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-size:1rem;cursor:pointer;font-weight:600}
+.status{margin-top:12px;font-size:1rem;min-height:28px;color:#facc15;font-weight:600}
+.hint{font-size:0.78rem;color:#64748b;margin-top:6px}
+</style>
+</head>
+<body>
+<div class="scoreboard">
+  <div class="team you"><div class="name">You</div><div class="score" id="yourScore">0</div></div>
+  <div class="vs">VS</div>
+  <div class="team ai"><div class="name">Goalkeeper AI</div><div class="score" id="aiScore">0</div></div>
+</div>
+<div class="round-info">Round <b id="round">1</b> / 5</div>
+<canvas id="c" width="500" height="380"></canvas>
+<div class="status" id="status">Click where you want to shoot!</div>
+<div class="hint">Click on the goal to aim your shot</div>
+<div class="msg" id="startScreen"><h2>⚽ Penalty Shootout</h2><p>Click on the goal to shoot!<br>5 rounds — outscore the AI keeper!</p><button onclick="startGame()">Play</button></div>
+<div class="msg" id="overScreen" style="display:none"><h2 id="overTitle">Results</h2><p id="overMsg"></p><button onclick="startGame()">Play Again</button></div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=canvas.width,H=canvas.height;
+const params=new URLSearchParams(window.location.search);
+const DIFF=params.get('diff')||'medium';
+const FCFG={easy:{saveChance:0.25,aiScoreRate:0.4},medium:{saveChance:0.4,aiScoreRate:0.55},hard:{saveChance:0.6,aiScoreRate:0.7}};
+const FC=FCFG[DIFF]||FCFG.medium;
+const GOAL_X=100,GOAL_Y=40,GOAL_W=300,GOAL_H=140;
+const NET_BOTTOM=GOAL_Y+GOAL_H;
+const BALL_START_X=W/2,BALL_START_Y=H-50;
+
+let yourScore,aiScore,round,maxRounds=5,phase,ball,keeper,shotTarget,animTimer;
+let shotResult='';
+
+function startGame(){
+  document.getElementById('startScreen').style.display='none';
+  document.getElementById('overScreen').style.display='none';
+  yourScore=0;aiScore=0;round=1;
+  updateHUD();resetShot();
+}
+
+function updateHUD(){
+  document.getElementById('yourScore').textContent=yourScore;
+  document.getElementById('aiScore').textContent=aiScore;
+  document.getElementById('round').textContent=round;
+}
+
+function resetShot(){
+  phase='aiming';
+  ball={x:BALL_START_X,y:BALL_START_Y,r:12};
+  keeper={x:GOAL_X+GOAL_W/2-20,y:GOAL_Y+GOAL_H-50,w:40,h:50,targetX:GOAL_X+GOAL_W/2-20};
+  shotTarget=null;shotResult='';animTimer=0;
+  document.getElementById('status').textContent='Click where you want to shoot!';
+  draw();
+}
+
+function shoot(targetX,targetY){
+  phase='shooting';
+  shotTarget={x:targetX,y:targetY};
+  // Keeper dives to a random side (with some intelligence)
+  const goalCenter=GOAL_X+GOAL_W/2;
+  const bias=targetX<goalCenter?-1:1;
+  // AI has ~40% chance to guess correctly
+  const correct=Math.random()<FC.saveChance;
+  const diveDir=correct?bias:-bias;
+  keeper.targetX=GOAL_X+GOAL_W/2+diveDir*(GOAL_W/3)-20;
+  animTimer=0;
+  animateShot();
+}
+
+function animateShot(){
+  animTimer++;
+  const progress=Math.min(animTimer/30,1);
+  const ease=1-Math.pow(1-progress,3);
+
+  // Ball flies toward target
+  ball.x=BALL_START_X+(shotTarget.x-BALL_START_X)*ease;
+  ball.y=BALL_START_Y+(shotTarget.y-BALL_START_Y)*ease;
+  ball.r=12-ease*4;
+
+  // Keeper dives
+  keeper.x+=(keeper.targetX-keeper.x)*0.15;
+
+  draw();
+
+  if(progress<1){
+    requestAnimationFrame(animateShot);
+  }else{
+    // Check if saved
+    const keeperLeft=keeper.x,keeperRight=keeper.x+keeper.w;
+    const keeperTop=keeper.y;
+    const saved=ball.x>keeperLeft-10&&ball.x<keeperRight+10&&ball.y>keeperTop-10&&ball.y<keeper.y+keeper.h;
+    const onTarget=ball.x>GOAL_X&&ball.x<GOAL_X+GOAL_W&&ball.y>GOAL_Y&&ball.y<NET_BOTTOM;
+
+    if(!onTarget){
+      shotResult='miss';
+      document.getElementById('status').textContent='❌ Missed!';
+    }else if(saved){
+      shotResult='saved';
+      document.getElementById('status').textContent='🧤 Saved!';
+    }else{
+      shotResult='goal';
+      yourScore++;
+      document.getElementById('status').textContent='⚽ GOAL!!! 🎉';
+    }
+    updateHUD();
+    // AI turn
+    setTimeout(()=>{
+      aiTurn();
+    },1200);
+  }
+}
+
+function aiTurn(){
+  // AI scores ~55% of the time
+  const scores=Math.random()<FC.aiScoreRate;
+  if(scores){aiScore++;document.getElementById('status').textContent='🤖 AI scores...';}
+  else document.getElementById('status').textContent='🧤 You saved the AI shot!';
+  updateHUD();
+
+  setTimeout(()=>{
+    round++;
+    if(round>maxRounds){
+      endGame();
+    }else{
+      resetShot();
+    }
+  },1200);
+}
+
+function endGame(){
+  phase='over';
+  const title=document.getElementById('overTitle');
+  const msg=document.getElementById('overMsg');
+  if(yourScore>aiScore){title.textContent='🏆 You Win!';msg.textContent=`${yourScore} - ${aiScore}`;}
+  else if(aiScore>yourScore){title.textContent='You Lose';msg.textContent=`${yourScore} - ${aiScore}`;}
+  else{title.textContent='Draw!';msg.textContent=`${yourScore} - ${aiScore}`;}
+  document.getElementById('overScreen').style.display='block';
+}
+
+function draw(){
+  // Pitch
+  const grad=ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#0d3d0d');grad.addColorStop(1,'#1a5c1a');
+  ctx.fillStyle=grad;ctx.fillRect(0,0,W,H);
+
+  // Pitch lines
+  ctx.strokeStyle='rgba(255,255,255,0.15)';ctx.lineWidth=2;
+  // Penalty area
+  ctx.strokeRect(GOAL_X-30,0,GOAL_W+60,GOAL_H+80);
+  // Small box
+  ctx.strokeRect(GOAL_X+40,0,GOAL_W-80,GOAL_H+30);
+  // Penalty spot
+  ctx.fillStyle='rgba(255,255,255,0.5)';
+  ctx.beginPath();ctx.arc(W/2,H-100,3,0,Math.PI*2);ctx.fill();
+  // Center arc
+  ctx.beginPath();ctx.arc(W/2,0,60,0,Math.PI);ctx.stroke();
+
+  // Goal net
+  ctx.fillStyle='rgba(255,255,255,0.05)';
+  ctx.fillRect(GOAL_X,GOAL_Y,GOAL_W,GOAL_H);
+  // Net grid
+  ctx.strokeStyle='rgba(255,255,255,0.1)';ctx.lineWidth=0.5;
+  for(let x=GOAL_X;x<=GOAL_X+GOAL_W;x+=15){ctx.beginPath();ctx.moveTo(x,GOAL_Y);ctx.lineTo(x,NET_BOTTOM);ctx.stroke();}
+  for(let y=GOAL_Y;y<=NET_BOTTOM;y+=15){ctx.beginPath();ctx.moveTo(GOAL_X,y);ctx.lineTo(GOAL_X+GOAL_W,y);ctx.stroke();}
+  // Goal posts
+  ctx.strokeStyle='#fff';ctx.lineWidth=4;
+  ctx.strokeRect(GOAL_X,GOAL_Y,GOAL_W,GOAL_H);
+
+  // Keeper
+  ctx.fillStyle='#facc15';ctx.shadowColor='#facc15';ctx.shadowBlur=10;
+  ctx.beginPath();ctx.roundRect(keeper.x,keeper.y,keeper.w,keeper.h,6);ctx.fill();
+  // Keeper details
+  ctx.fillStyle='#1a1a2e';
+  ctx.beginPath();ctx.arc(keeper.x+keeper.w/2,keeper.y+12,8,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+
+  // Ball
+  ctx.fillStyle='#fff';ctx.shadowColor='#fff';ctx.shadowBlur=15;
+  ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2);ctx.fill();
+  // Ball pattern
+  ctx.strokeStyle='rgba(0,0,0,0.2)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2);ctx.stroke();
+  ctx.shadowBlur=0;
+
+  // Shot result indicator
+  if(shotResult==='goal'){
+    ctx.font='bold 36px Segoe UI';ctx.textAlign='center';
+    ctx.fillStyle='#22c55e';ctx.shadowColor='#22c55e';ctx.shadowBlur=20;
+    ctx.fillText('GOAL!',W/2,H/2);ctx.shadowBlur=0;
+  }else if(shotResult==='saved'){
+    ctx.font='bold 28px Segoe UI';ctx.textAlign='center';
+    ctx.fillStyle='#ef4444';ctx.fillText('SAVED!',W/2,H/2);
+  }else if(shotResult==='miss'){
+    ctx.font='bold 28px Segoe UI';ctx.textAlign='center';
+    ctx.fillStyle='#fb923c';ctx.fillText('MISS!',W/2,H/2);
+  }
+}
+
+canvas.addEventListener('click',e=>{
+  if(phase!=='aiming')return;
+  const rect=canvas.getBoundingClientRect();
+  const mx=e.clientX-rect.left,my=e.clientY-rect.top;
+  // Scale to canvas
+  const sx=mx*(W/rect.width),sy=my*(H/rect.height);
+  // Only shoot at goal area (with some margin)
+  if(sx>=GOAL_X-20&&sx<=GOAL_X+GOAL_W+20&&sy>=GOAL_Y-20&&sy<=NET_BOTTOM+40){
+    shoot(sx,Math.max(GOAL_Y+10,Math.min(sy,NET_BOTTOM-10)));
+  }
+});
+
+draw();
+</script>
+</body>
+</html>

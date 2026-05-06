@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Grid Tactics</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}body{background:#1a1a2e;font-family:'Segoe UI',sans-serif;color:#e2e8f0;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+.top{display:flex;justify-content:space-between;padding:8px 16px;background:rgba(0,0,0,0.3);border-bottom:1px solid rgba(239,68,68,0.2)}
+.top h2{font-size:1rem;color:#ef4444;font-weight:800}.top .info{font-size:0.8rem;color:#94a3b8}
+.main{flex:1;display:flex;overflow:hidden}.track-view{flex:1;position:relative}
+.track-view canvas{width:100%;height:100%}
+.sidebar{width:240px;background:rgba(0,0,0,0.3);border-left:1px solid rgba(255,255,255,0.06);padding:10px;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
+.sidebar h4{font-size:0.65rem;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin-top:4px}
+.driver-card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:8px;cursor:pointer;transition:all 0.2s}
+.driver-card:hover{border-color:rgba(239,68,68,0.3)}.driver-card.selected{border-color:#ef4444;background:rgba(239,68,68,0.1)}
+.driver-card .name{font-weight:700;font-size:0.8rem}.driver-card .stats{font-size:0.65rem;color:#94a3b8;display:flex;gap:6px;margin-top:2px}
+.driver-card .stats b{color:#ef4444}
+.tire{display:flex;align-items:center;gap:4px;font-size:0.7rem;margin-top:4px}
+.tire-bar{width:60px;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden}
+.tire-fill{height:100%;background:#22c55e;border-radius:3px;transition:width 0.3s}
+.pit-btn{padding:8px;border:1px solid rgba(239,68,68,0.3);border-radius:6px;background:rgba(239,68,68,0.1);color:#ef4444;font-size:0.75rem;font-weight:700;cursor:pointer;text-align:center;margin-top:4px}
+.pit-btn:hover{background:rgba(239,68,68,0.2)}
+.race-btn{padding:10px;border:none;border-radius:8px;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;font-weight:700;cursor:pointer;margin-top:8px;font-size:0.85rem}
+.standings{font-size:0.7rem}.standings .pos{display:flex;gap:6px;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.04)}
+.standings .pos b{min-width:16px}
+.msg{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:10}
+.msg-box{text-align:center;background:#1a1a2e;padding:32px 48px;border-radius:16px;border:1px solid rgba(239,68,68,0.3)}
+.msg-box h2{font-size:1.6rem;margin-bottom:8px;background:linear-gradient(135deg,#ef4444,#fb923c);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.msg-box p{color:#94a3b8;margin-bottom:16px;line-height:1.6;font-size:0.85rem}.msg-box button{padding:10px 24px;border:none;border-radius:12px;background:linear-gradient(135deg,#ef4444,#fb923c);color:white;font-size:0.9rem;cursor:pointer;font-weight:700}
+.hidden{display:none!important}
+</style></head><body>
+<div class="top"><h2>🏎️ Grid Tactics</h2><span class="info" id="lapInfo">Lap 0/15</span><span class="info" id="raceStatus">Setup Phase</span></div>
+<div class="main"><div class="track-view"><canvas id="trackCanvas"></canvas></div>
+<div class="sidebar" id="sidebar"></div></div>
+<div class="msg" id="startScreen"><div class="msg-box"><h2>🏎️ Grid Tactics</h2><p>Draft a driver, manage tires & pit stops!<br>Race 15 laps on a dynamic track.</p><button onclick="startGame()">Start Season</button></div></div>
+<div class="msg hidden" id="endScreen"><div class="msg-box"><h2 id="endTitle"></h2><p id="endMsg"></p><button onclick="location.reload()">New Season</button></div></div>
+<script>
+const NAMES=['Hamilton','Verstappen','Leclerc','Norris','Alonso','Sainz','Russell','Piastri'];
+const TEAMS=['🔴','🔵','🟡','🟠','🟢','⚪','🟣','🟤'];
+let drivers=[],myDriver=null,lap=0,maxLaps=15,racing=false,raceInt;
+const canvas=document.getElementById('trackCanvas'),ctx=canvas.getContext('2d');
+
+function rnd(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+
+function genDrivers(){
+  drivers=NAMES.map((n,i)=>({name:n,team:TEAMS[i],speed:rnd(70,95),skill:rnd(60,95),tireWear:100,pos:i+1,lapTime:0,pitting:false,totalTime:0,angle:i*0.3}));
+}
+
+function startGame(){
+  document.getElementById('startScreen').classList.add('hidden');
+  genDrivers();renderSetup();
+}
+
+function renderSetup(){
+  const sb=document.getElementById('sidebar');
+  sb.innerHTML='<h4>Choose Your Driver</h4>'+drivers.map((d,i)=>
+    `<div class="driver-card" onclick="selectDriver(${i})" id="dc${i}"><div class="name">${d.team} ${d.name}</div><div class="stats">SPD: <b>${d.speed}</b> SKL: <b>${d.skill}</b></div></div>`
+  ).join('')+'<button class="race-btn" id="raceBtn" onclick="startRace()" style="display:none">🏁 Start Race</button>';
+}
+
+function selectDriver(i){
+  myDriver=i;drivers.forEach((_,j)=>document.getElementById('dc'+j).classList.remove('selected'));
+  document.getElementById('dc'+i).classList.add('selected');
+  document.getElementById('raceBtn').style.display='block';
+}
+
+function startRace(){
+  if(myDriver===null)return;racing=true;lap=0;
+  document.getElementById('raceStatus').textContent='Racing!';
+  renderRaceSidebar();
+  raceInt=setInterval(raceTick,600);
+}
+
+function raceTick(){
+  lap++;document.getElementById('lapInfo').textContent=`Lap ${lap}/${maxLaps}`;
+  drivers.forEach(d=>{
+    d.tireWear=Math.max(0,d.tireWear-rnd(3,8));
+    const tireFactor=d.tireWear/100;
+    d.lapTime=100-d.speed*0.5-d.skill*0.3*tireFactor+rnd(-5,5);
+    if(d.tireWear<20&&!d.pitting&&Math.random()<0.3){d.pitting=true;d.lapTime+=15;d.tireWear=100;}
+    else d.pitting=false;
+    d.totalTime+=d.lapTime;d.angle+=0.15+d.speed*0.001;
+  });
+  drivers.sort((a,b)=>a.totalTime-b.totalTime);
+  drivers.forEach((d,i)=>d.pos=i+1);
+  renderRaceSidebar();drawTrack();
+  if(lap>=maxLaps){clearInterval(raceInt);racing=false;endRace();}
+}
+
+function pitStop(){
+  if(!racing||myDriver===null)return;
+  drivers[myDriver].tireWear=100;drivers[myDriver].totalTime+=12;
+  renderRaceSidebar();
+}
+
+function renderRaceSidebar(){
+  const sb=document.getElementById('sidebar');
+  const sorted=[...drivers].sort((a,b)=>a.totalTime-b.totalTime);
+  let html='<h4>Standings</h4><div class="standings">'+sorted.map((d,i)=>
+    `<div class="pos${d===drivers[myDriver]?' style="color:#ef4444;font-weight:700"':''}"><b>${i+1}.</b>${d.team} ${d.name}</div>`
+  ).join('')+'</div>';
+  if(myDriver!==null){
+    const my=drivers[myDriver];
+    html+=`<h4>Your Driver</h4><div class="driver-card selected"><div class="name">${my.team} ${my.name}</div>
+    <div class="tire">Tires: <div class="tire-bar"><div class="tire-fill" style="width:${my.tireWear}%;background:${my.tireWear<30?'#ef4444':'#22c55e'}"></div></div> ${my.tireWear}%</div></div>
+    <button class="pit-btn" onclick="pitStop()">🔧 Pit Stop</button>`;
+  }
+  sb.innerHTML=html;
+}
+
+function drawTrack(){
+  canvas.width=canvas.parentElement.clientWidth;canvas.height=canvas.parentElement.clientHeight;
+  const cx=canvas.width/2,cy=canvas.height/2,rx=Math.min(cx-40,180),ry=Math.min(cy-40,120);
+  ctx.fillStyle='#1a1a2e';ctx.fillRect(0,0,canvas.width,canvas.height);
+  // Track
+  ctx.strokeStyle='#333';ctx.lineWidth=30;ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);ctx.stroke();
+  ctx.strokeStyle='#444';ctx.lineWidth=28;ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);ctx.stroke();
+  // Cars
+  drivers.forEach((d,i)=>{
+    const x=cx+Math.cos(d.angle)*rx,y=cy+Math.sin(d.angle)*ry;
+    ctx.fillStyle=i===myDriver?'#ef4444':'#666';ctx.shadowColor=i===myDriver?'#ef4444':'transparent';ctx.shadowBlur=i===myDriver?12:0;
+    ctx.beginPath();ctx.arc(x,y,6,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+    ctx.fillStyle='#fff';ctx.font='bold 8px sans-serif';ctx.textAlign='center';ctx.fillText(d.pos,x,y-10);
+  });
+  // Start line
+  ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(cx+rx+15,cy-15);ctx.lineTo(cx+rx+15,cy+15);ctx.stroke();
+}
+
+function endRace(){
+  document.getElementById('endScreen').classList.remove('hidden');
+  const pos=drivers[myDriver].pos;
+  document.getElementById('endTitle').textContent=pos<=3?'🏆 Podium Finish!':'🏁 Race Complete';
+  document.getElementById('endMsg').textContent=`${drivers[myDriver].name} finished P${pos}!`;
+  if(window.parent!==window)window.parent.postMessage({type:'score-submit',gameId:'grid-tactics',score:(9-pos)*100+500},'*');
+}
+drawTrack();
+</script></body></html>

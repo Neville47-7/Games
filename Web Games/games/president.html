@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>President Simulator</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a1a;font-family:'Segoe UI',sans-serif;color:#e2e8f0;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:rgba(255,255,255,0.03);border-bottom:1px solid rgba(255,255,255,0.07)}
+.topbar .title{font-size:1.1rem;font-weight:800;background:linear-gradient(135deg,#7c3aed,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.topbar .date{color:#94a3b8;font-size:0.9rem}
+.approval-bar{display:flex;align-items:center;gap:8px}
+.approval-bar .pct{font-weight:700;font-size:1.1rem}
+.approval-track{width:120px;height:8px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden}
+.approval-fill{height:100%;border-radius:4px;transition:width 0.5s,background 0.5s}
+.main{display:flex;flex:1;overflow:hidden}
+.sidebar{width:220px;padding:12px;overflow-y:auto;background:rgba(255,255,255,0.02);border-right:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;gap:8px}
+.stat{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:8px 10px}
+.stat .label{font-size:0.65rem;text-transform:uppercase;letter-spacing:0.8px;color:#64748b;margin-bottom:3px}
+.stat .value{font-size:1rem;font-weight:700;display:flex;align-items:center;gap:6px}
+.stat .bar{height:4px;background:rgba(255,255,255,0.08);border-radius:2px;margin-top:4px}
+.stat .bar-fill{height:100%;border-radius:2px;transition:width 0.4s}
+.center{flex:1;display:flex;flex-direction:column;padding:16px;gap:12px;overflow-y:auto}
+.news-ticker{background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.2);border-radius:8px;padding:8px 14px;font-size:0.82rem;color:#a78bfa;min-height:36px}
+.decision-card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px;animation:fadeIn 0.3s}
+.decision-card h3{font-size:1rem;margin-bottom:4px}
+.decision-card .desc{font-size:0.82rem;color:#94a3b8;margin-bottom:12px;line-height:1.5}
+.decision-card .category{font-size:0.65rem;text-transform:uppercase;letter-spacing:0.8px;padding:3px 8px;border-radius:4px;display:inline-block;margin-bottom:8px}
+.choices{display:flex;flex-direction:column;gap:6px}
+.choice-btn{padding:10px 14px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;background:rgba(255,255,255,0.03);color:#e2e8f0;font-size:0.85rem;text-align:left;cursor:pointer;transition:all 0.2s;display:flex;justify-content:space-between;align-items:center}
+.choice-btn:hover{background:rgba(124,58,237,0.15);border-color:rgba(124,58,237,0.3)}
+.choice-btn .effects{font-size:0.7rem;color:#64748b}
+.event-card{background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:12px;padding:16px}
+.event-card h3{color:#f87171}
+.right-panel{width:200px;padding:12px;overflow-y:auto;background:rgba(255,255,255,0.02);border-left:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;gap:8px}
+.advisor{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:8px;font-size:0.78rem}
+.advisor .name{font-weight:600;color:#06b6d4;margin-bottom:2px}
+.advisor .quote{color:#94a3b8;font-style:italic;line-height:1.4}
+.log-box{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:8px;flex:1;overflow-y:auto}
+.log-box h4{font-size:0.65rem;text-transform:uppercase;color:#64748b;letter-spacing:0.8px;margin-bottom:4px}
+.log-entry{font-size:0.72rem;color:#94a3b8;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.03)}
+.log-entry.good{color:#34d399}.log-entry.bad{color:#f87171}
+.next-btn{padding:10px 24px;border:none;border-radius:10px;background:linear-gradient(135deg,#7c3aed,#06b6d4);color:#fff;font-weight:600;cursor:pointer;font-size:0.9rem;align-self:flex-end}
+.next-btn:hover{opacity:0.9}
+.msg{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:50}
+.msg-box{text-align:center;background:#111128;padding:36px 52px;border-radius:20px;border:1px solid rgba(124,58,237,0.3);max-width:480px}
+.msg-box h2{font-size:1.8rem;margin-bottom:8px;background:linear-gradient(135deg,#7c3aed,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.msg-box p{color:#94a3b8;margin-bottom:16px;line-height:1.6}
+.msg-box button{padding:10px 28px;border:none;border-radius:24px;background:linear-gradient(135deg,#7c3aed,#06b6d4);color:#fff;font-size:1rem;cursor:pointer;font-weight:600}
+.msg-box .stats-summary{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:16px 0;text-align:left}
+.msg-box .ss{background:rgba(255,255,255,0.04);border-radius:6px;padding:8px;font-size:0.8rem}
+.msg-box .ss b{color:#06b6d4}
+.cat-eco{background:rgba(52,211,153,0.12);color:#34d399}
+.cat-mil{background:rgba(239,68,68,0.12);color:#f87171}
+.cat-edu{background:rgba(96,165,250,0.12);color:#60a5fa}
+.cat-hlt{background:rgba(244,114,182,0.12);color:#f472b6}
+.cat-env{background:rgba(163,230,53,0.12);color:#a3e635}
+.cat-dip{background:rgba(251,146,60,0.12);color:#fb923c}
+.cat-soc{background:rgba(167,139,250,0.12);color:#a78bfa}
+.hidden{display:none!important}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="title">🏛️ President Simulator</div>
+  <div class="date" id="dateDisplay">January 2025 — Term 1</div>
+  <div class="approval-bar">
+    <span style="color:#64748b;font-size:0.8rem">Approval</span>
+    <div class="approval-track"><div class="approval-fill" id="approvalFill"></div></div>
+    <span class="pct" id="approvalPct">60%</span>
+  </div>
+</div>
+<div class="main">
+  <div class="sidebar" id="sidebar"></div>
+  <div class="center" id="center"></div>
+  <div class="right-panel">
+    <div id="advisorPanel"></div>
+    <div class="log-box"><h4>History</h4><div id="historyLog"></div></div>
+  </div>
+</div>
+<div class="msg" id="startScreen">
+  <div class="msg-box">
+    <h2>🏛️ President Simulator</h2>
+    <p>You've been elected President! Manage economy, military, education, healthcare & diplomacy. Survive 4 years, get re-elected, and leave a legacy.<br><br>⚠️ If approval drops below 15%, you'll be impeached!</p>
+    <button onclick="startGame()">Take Office</button>
+  </div>
+</div>
+<div class="msg hidden" id="endScreen">
+  <div class="msg-box">
+    <h2 id="endTitle"></h2>
+    <p id="endMsg"></p>
+    <div class="stats-summary" id="endStats"></div>
+    <button onclick="startGame()">New Term</button>
+  </div>
+</div>
+<script>
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const CATS={eco:'Economy',mil:'Military',edu:'Education',hlt:'Healthcare',env:'Environment',dip:'Diplomacy',soc:'Social'};
+
+const DECISIONS=[
+  {cat:'eco',title:'Tax Reform',desc:'Your treasury advisor proposes changes to the tax code.',choices:[
+    {text:'Cut taxes for middle class',effects:{treasury:-8,happiness:6,approval:4,gdp:2}},
+    {text:'Raise taxes on corporations',effects:{treasury:12,happiness:-2,approval:-3,gdp:-2}},
+    {text:'Keep current rates',effects:{approval:-1}}
+  ]},
+  {cat:'eco',title:'Infrastructure Bill',desc:'Aging roads and bridges need attention. A $50B bill is proposed.',choices:[
+    {text:'Pass the full bill',effects:{treasury:-15,happiness:5,approval:5,gdp:6}},
+    {text:'Reduce to $20B',effects:{treasury:-6,happiness:2,approval:1,gdp:3}},
+    {text:'Veto the bill',effects:{happiness:-4,approval:-3}}
+  ]},
+  {cat:'eco',title:'Trade Agreement',desc:'A neighboring nation offers a trade deal that could boost exports.',choices:[
+    {text:'Accept the deal',effects:{gdp:5,treasury:8,diplomacy:5,approval:3}},
+    {text:'Negotiate harder terms',effects:{gdp:3,treasury:4,diplomacy:-2,approval:1}},
+    {text:'Reject — protect local industry',effects:{gdp:-2,happiness:3,diplomacy:-4}}
+  ]},
+  {cat:'eco',title:'Minimum Wage',desc:'Workers are demanding a higher minimum wage.',choices:[
+    {text:'Raise by 25%',effects:{happiness:7,treasury:-4,gdp:-2,approval:4}},
+    {text:'Raise by 10%',effects:{happiness:3,treasury:-1,approval:2}},
+    {text:'Freeze wages',effects:{happiness:-5,treasury:3,approval:-4}}
+  ]},
+  {cat:'mil',title:'Defense Budget',desc:'The military requests additional funding for modernization.',choices:[
+    {text:'Increase by 20%',effects:{military:10,treasury:-12,approval:2}},
+    {text:'Maintain current levels',effects:{military:1,approval:0}},
+    {text:'Cut by 15%',effects:{military:-8,treasury:10,approval:-2}}
+  ]},
+  {cat:'mil',title:'Border Security',desc:'Reports of increased border tensions.',choices:[
+    {text:'Deploy additional troops',effects:{military:3,treasury:-6,approval:3,diplomacy:-3}},
+    {text:'Invest in surveillance tech',effects:{military:2,treasury:-4,approval:2}},
+    {text:'Pursue diplomatic solution',effects:{diplomacy:5,military:-2,approval:1}}
+  ]},
+  {cat:'edu',title:'Education Reform',desc:'Test scores are declining nationwide.',choices:[
+    {text:'Fund teacher training program',effects:{education:8,treasury:-8,approval:4,happiness:3}},
+    {text:'Build new schools',effects:{education:6,treasury:-12,approval:3,happiness:4}},
+    {text:'Implement standardized testing',effects:{education:3,treasury:-2,approval:-2,happiness:-2}}
+  ]},
+  {cat:'edu',title:'University Funding',desc:'Public universities request more federal funding.',choices:[
+    {text:'Double research grants',effects:{education:10,treasury:-10,gdp:4,approval:4}},
+    {text:'Modest increase',effects:{education:4,treasury:-4,approval:2}},
+    {text:'Privatize more',effects:{education:-3,treasury:5,approval:-3,happiness:-3}}
+  ]},
+  {cat:'hlt',title:'Healthcare Act',desc:'Millions lack affordable healthcare access.',choices:[
+    {text:'Universal healthcare plan',effects:{healthcare:12,treasury:-15,happiness:8,approval:6}},
+    {text:'Expand existing programs',effects:{healthcare:6,treasury:-6,happiness:4,approval:3}},
+    {text:'Market-based reforms',effects:{healthcare:2,treasury:3,happiness:-2,approval:-2}}
+  ]},
+  {cat:'hlt',title:'Pharmaceutical Prices',desc:'Drug prices are skyrocketing.',choices:[
+    {text:'Cap drug prices',effects:{healthcare:6,happiness:5,treasury:-3,approval:5}},
+    {text:'Negotiate bulk deals',effects:{healthcare:3,happiness:3,treasury:-1,approval:3}},
+    {text:'Let market decide',effects:{happiness:-4,approval:-3,treasury:2}}
+  ]},
+  {cat:'env',title:'Climate Policy',desc:'Environmental groups demand stronger climate action.',choices:[
+    {text:'Green New Deal — massive investment',effects:{environment:12,treasury:-14,gdp:-3,happiness:4,approval:3}},
+    {text:'Carbon tax',effects:{environment:7,treasury:6,gdp:-2,happiness:-2,approval:1}},
+    {text:'Voluntary targets only',effects:{environment:2,approval:-2,happiness:-2}}
+  ]},
+  {cat:'env',title:'Energy Policy',desc:'Time to decide the nation\'s energy future.',choices:[
+    {text:'Invest in renewables',effects:{environment:8,treasury:-8,gdp:3,approval:3}},
+    {text:'Expand nuclear power',effects:{environment:4,treasury:-6,gdp:4,approval:1}},
+    {text:'Continue fossil fuels',effects:{environment:-5,treasury:5,gdp:2,approval:-2}}
+  ]},
+  {cat:'dip',title:'Foreign Aid',desc:'A developing nation requests humanitarian aid.',choices:[
+    {text:'Send generous aid package',effects:{diplomacy:8,treasury:-8,approval:2,happiness:2}},
+    {text:'Send limited aid',effects:{diplomacy:3,treasury:-3,approval:1}},
+    {text:'Decline request',effects:{diplomacy:-5,treasury:2,approval:-1}}
+  ]},
+  {cat:'dip',title:'UN Resolution',desc:'The UN proposes a resolution on human rights.',choices:[
+    {text:'Strongly support',effects:{diplomacy:6,approval:3,happiness:2}},
+    {text:'Abstain',effects:{diplomacy:-2,approval:-1}},
+    {text:'Oppose',effects:{diplomacy:-6,approval:-3,happiness:-2}}
+  ]},
+  {cat:'soc',title:'Social Media Regulation',desc:'Calls grow to regulate social media platforms.',choices:[
+    {text:'Strict regulation',effects:{happiness:3,approval:2,gdp:-2}},
+    {text:'Moderate guidelines',effects:{happiness:1,approval:1}},
+    {text:'No regulation',effects:{happiness:-2,approval:-1,gdp:2}}
+  ]},
+  {cat:'soc',title:'Housing Crisis',desc:'Housing costs are skyrocketing in major cities.',choices:[
+    {text:'Build public housing',effects:{happiness:7,treasury:-10,approval:5}},
+    {text:'Rent control policies',effects:{happiness:4,treasury:-2,approval:3,gdp:-2}},
+    {text:'Deregulate zoning',effects:{happiness:1,gdp:3,approval:-1}}
+  ]},
+];
+
+const EVENTS=[
+  {title:'🌪️ Natural Disaster',desc:'A devastating hurricane strikes the coast!',effects:{treasury:-12,happiness:-6,approval:-4},response:'You mobilize emergency response teams.'},
+  {title:'📈 Economic Boom',desc:'Strong growth drives a market rally!',effects:{treasury:10,gdp:6,happiness:4,approval:5},response:'Markets celebrate the news.'},
+  {title:'🦠 Pandemic Outbreak',desc:'A new virus is spreading rapidly.',effects:{healthcare:-8,happiness:-8,treasury:-10,approval:-5},response:'Health agencies are on high alert.'},
+  {title:'💥 Terror Threat',desc:'Intelligence agencies warn of a threat.',effects:{military:-3,happiness:-5,approval:-3},response:'Security levels raised nationwide.'},
+  {title:'🛢️ Oil Crisis',desc:'Oil prices surge due to supply disruptions.',effects:{treasury:-8,gdp:-4,happiness:-4,approval:-3},response:'Energy markets in turmoil.'},
+  {title:'🔬 Tech Breakthrough',desc:'A major scientific discovery boosts the nation!',effects:{gdp:5,education:5,happiness:4,approval:4},response:'The nation celebrates innovation.'},
+  {title:'📰 Political Scandal',desc:'A cabinet member is caught in a scandal.',effects:{approval:-8,happiness:-3},response:'Media coverage is intense.'},
+  {title:'🏭 Factory Boom',desc:'New factories open across the country.',effects:{gdp:6,treasury:5,happiness:3,environment:-3},response:'Jobs are being created rapidly.'},
+  {title:'🌍 Diplomatic Win',desc:'Your diplomats secure a major peace agreement.',effects:{diplomacy:8,approval:6,happiness:3},response:'World leaders applaud the achievement.'},
+  {title:'📉 Recession Warning',desc:'Economists warn of an incoming recession.',effects:{gdp:-6,treasury:-8,happiness:-4,approval:-4},response:'Markets react nervously.'},
+];
+
+const ADVISORS=[
+  {name:'💼 Treasury Secretary',getAdvice:s=>s.treasury<30?'We need to increase revenue soon.':s.treasury>70?'Finances are strong.':'Budget is stable.'},
+  {name:'⭐ Chief of Staff',getAdvice:s=>s.approval<30?'Approval is dangerously low!':s.approval>65?'Public loves you!':'Focus on popular policies.'},
+  {name:'🎖️ Defense Secretary',getAdvice:s=>s.military<30?'Military readiness is concerning.':s.military>70?'Armed forces are strong.':'Defense is adequate.'},
+  {name:'🏥 Health Secretary',getAdvice:s=>s.healthcare<35?'Healthcare system needs attention!':'Healthcare is manageable.'},
+];
+
+let state,monthTimer;
+
+function startGame(){
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('endScreen').classList.add('hidden');
+  state={
+    month:0,year:2025,term:1,monthsInTerm:0,
+    approval:58,treasury:55,gdp:50,happiness:50,
+    military:50,education:45,healthcare:45,environment:40,diplomacy:50,
+    usedDecisions:[],pendingDecision:null,newsText:'You have taken office. The nation awaits your leadership.',
+    history:[]
+  };
+  nextMonth();
+}
+
+function clamp(v){return Math.max(0,Math.min(100,v));}
+
+function applyEffects(effects){
+  const keys={treasury:'treasury',gdp:'gdp',happiness:'happiness',military:'military',
+    education:'education',healthcare:'healthcare',environment:'environment',diplomacy:'diplomacy',approval:'approval'};
+  for(const[k,v]of Object.entries(effects)){
+    if(keys[k])state[keys[k]]=clamp(state[keys[k]]+v);
+  }
+  // Approval is also influenced by happiness
+  state.approval=clamp(state.approval+(state.happiness-50)*0.02);
+}
+
+function getDecision(){
+  const avail=DECISIONS.filter((_,i)=>!state.usedDecisions.includes(i));
+  if(avail.length===0)state.usedDecisions=[];
+  const pool=avail.length?avail:DECISIONS;
+  const idx=DECISIONS.indexOf(pool[Math.floor(Math.random()*pool.length)]);
+  state.usedDecisions.push(idx);
+  return DECISIONS[idx];
+}
+
+function nextMonth(){
+  state.month++;state.monthsInTerm++;
+  if(state.month>12){state.month=1;state.year++;}
+
+  // Passive changes
+  state.treasury=clamp(state.treasury+(state.gdp-50)*0.05);
+  state.approval=clamp(state.approval+(state.happiness-50)*0.03);
+  // Slight decay
+  state.happiness=clamp(state.happiness-0.3);
+
+  // Random event (20% chance)
+  let event=null;
+  if(Math.random()<0.2){
+    event=EVENTS[Math.floor(Math.random()*EVENTS.length)];
+    applyEffects(event.effects);
+    state.newsText='📰 '+event.title+': '+event.response;
+    addHistory(event.title,'bad');
+  }
+
+  // Check impeachment
+  if(state.approval<15){endGame('impeached');return;}
+  // Check end of term
+  if(state.monthsInTerm>48){endGame('term_end');return;}
+
+  state.pendingDecision=getDecision();
+  renderAll(event);
+}
+
+function makeChoice(choiceIdx){
+  const d=state.pendingDecision;
+  const choice=d.choices[choiceIdx];
+  applyEffects(choice.effects);
+  state.newsText='✅ '+d.title+': "'+choice.text+'"';
+  addHistory(d.title+' → '+choice.text, Object.values(choice.effects||{}).reduce((a,b)=>a+b,0)>=0?'good':'bad');
+  state.pendingDecision=null;
+  nextMonth();
+}
+
+function addHistory(text,cls){
+  state.history.unshift({text,cls,month:MONTHS[state.month-1]+' '+state.year});
+  if(state.history.length>30)state.history.pop();
+}
+
+function endGame(reason){
+  const es=document.getElementById('endScreen');
+  es.classList.remove('hidden');
+  const title=document.getElementById('endTitle');
+  const msg=document.getElementById('endMsg');
+  const stats=document.getElementById('endStats');
+
+  if(reason==='impeached'){
+    title.textContent='😞 Impeached!';
+    msg.textContent='Your approval rating dropped too low. The people have spoken.';
+  }else if(state.approval>=50&&state.term<2){
+    title.textContent='🎉 Re-elected!';
+    msg.textContent=`With ${Math.round(state.approval)}% approval, you've won a second term!`;
+    stats.innerHTML=summaryHTML();
+    // Continue to term 2
+    setTimeout(()=>{
+      es.classList.add('hidden');
+      state.term=2;state.monthsInTerm=0;
+      nextMonth();
+    },3000);
+    return;
+  }else if(state.term>=2){
+    title.textContent='🏛️ Legacy Complete';
+    msg.textContent=`You served 2 full terms with ${Math.round(state.approval)}% final approval.`;
+  }else{
+    title.textContent='😔 Not Re-elected';
+    msg.textContent=`With ${Math.round(state.approval)}% approval, voters chose someone else.`;
+  }
+  stats.innerHTML=summaryHTML();
+}
+
+function summaryHTML(){
+  return `<div class="ss">💰 Treasury: <b>${Math.round(state.treasury)}</b></div>
+    <div class="ss">📊 GDP: <b>${Math.round(state.gdp)}</b></div>
+    <div class="ss">😊 Happiness: <b>${Math.round(state.happiness)}</b></div>
+    <div class="ss">🎖️ Military: <b>${Math.round(state.military)}</b></div>
+    <div class="ss">📚 Education: <b>${Math.round(state.education)}</b></div>
+    <div class="ss">🏥 Healthcare: <b>${Math.round(state.healthcare)}</b></div>
+    <div class="ss">🌱 Environment: <b>${Math.round(state.environment)}</b></div>
+    <div class="ss">🌍 Diplomacy: <b>${Math.round(state.diplomacy)}</b></div>`;
+}
+
+function renderAll(event){
+  // Top bar
+  document.getElementById('dateDisplay').textContent=MONTHS[state.month-1]+' '+state.year+' — Term '+state.term+' (Month '+state.monthsInTerm+'/48)';
+  const af=document.getElementById('approvalFill');
+  af.style.width=state.approval+'%';
+  af.style.background=state.approval>60?'#22c55e':state.approval>35?'#f59e0b':'#ef4444';
+  document.getElementById('approvalPct').textContent=Math.round(state.approval)+'%';
+  document.getElementById('approvalPct').style.color=state.approval>60?'#22c55e':state.approval>35?'#f59e0b':'#ef4444';
+
+  // Sidebar stats
+  const statData=[
+    {label:'Treasury',val:state.treasury,color:'#34d399',icon:'💰'},
+    {label:'GDP Growth',val:state.gdp,color:'#06b6d4',icon:'📊'},
+    {label:'Happiness',val:state.happiness,color:'#facc15',icon:'😊'},
+    {label:'Military',val:state.military,color:'#ef4444',icon:'🎖️'},
+    {label:'Education',val:state.education,color:'#60a5fa',icon:'📚'},
+    {label:'Healthcare',val:state.healthcare,color:'#f472b6',icon:'🏥'},
+    {label:'Environment',val:state.environment,color:'#a3e635',icon:'🌱'},
+    {label:'Diplomacy',val:state.diplomacy,color:'#fb923c',icon:'🌍'},
+  ];
+  document.getElementById('sidebar').innerHTML=statData.map(s=>`
+    <div class="stat"><div class="label">${s.icon} ${s.label}</div>
+    <div class="value" style="color:${s.color}">${Math.round(s.val)}/100</div>
+    <div class="bar"><div class="bar-fill" style="width:${s.val}%;background:${s.color}"></div></div></div>`).join('');
+
+  // Center - decision
+  const center=document.getElementById('center');
+  let html=`<div class="news-ticker">📰 ${state.newsText}</div>`;
+  if(event){
+    html+=`<div class="event-card"><h3>${event.title}</h3><p class="desc">${event.desc}</p></div>`;
+  }
+  if(state.pendingDecision){
+    const d=state.pendingDecision;
+    html+=`<div class="decision-card">
+      <span class="category cat-${d.cat}">${CATS[d.cat]||d.cat}</span>
+      <h3>${d.title}</h3><p class="desc">${d.desc}</p>
+      <div class="choices">${d.choices.map((c,i)=>{
+        const fx=Object.entries(c.effects||{}).map(([k,v])=>(v>0?'+':'')+v+' '+k).join(', ');
+        return `<button class="choice-btn" onclick="makeChoice(${i})"><span>${c.text}</span><span class="effects">${fx}</span></button>`;
+      }).join('')}</div></div>`;
+  }
+  center.innerHTML=html;
+
+  // Advisors
+  document.getElementById('advisorPanel').innerHTML=ADVISORS.map(a=>
+    `<div class="advisor"><div class="name">${a.name}</div><div class="quote">"${a.getAdvice(state)}"</div></div>`
+  ).join('');
+
+  // History
+  document.getElementById('historyLog').innerHTML=state.history.slice(0,15).map(h=>
+    `<div class="log-entry ${h.cls}">${h.month}: ${h.text}</div>`
+  ).join('');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Riff Rumble</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1a1a1a;font-family:'Segoe UI',sans-serif;color:#e2e8f0;height:100vh;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.bg{position:fixed;inset:0;background:radial-gradient(ellipse at 50% 120%,rgba(180,20,20,0.15),transparent 70%);pointer-events:none}
+.arena{width:700px;max-width:95vw;display:flex;flex-direction:column;align-items:center;gap:16px}
+.hp-row{display:flex;width:100%;align-items:center;gap:12px}
+.hp-label{font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;min-width:70px}
+.hp-label.you{color:#22c55e;text-align:right}
+.hp-label.ai{color:#ef4444}
+.hp-track{flex:1;height:24px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;position:relative}
+.hp-fill{height:100%;transition:width 0.3s;border-radius:3px}
+.hp-fill.you-fill{background:linear-gradient(90deg,#166534,#22c55e);float:right}
+.hp-fill.ai-fill{background:linear-gradient(90deg,#ef4444,#991b1b)}
+.hp-val{position:absolute;top:50%;transform:translateY(-50%);font-size:0.75rem;font-weight:800;padding:0 8px}
+.hp-val.you-val{right:4px}
+.hp-val.ai-val{left:4px}
+.vs{font-size:1.2rem;font-weight:900;color:#475569;text-shadow:0 0 10px rgba(255,255,255,0.1)}
+.prompt-box{width:100%;background:rgba(255,255,255,0.03);border:2px solid rgba(255,255,255,0.1);border-radius:12px;padding:24px 28px;min-height:100px;display:flex;align-items:center;justify-content:center;position:relative}
+.prompt-text{font-size:1.4rem;font-weight:500;letter-spacing:0.5px;line-height:1.6;text-align:center}
+.prompt-text .correct{color:#22c55e}
+.prompt-text .current{color:#fff;border-bottom:2px solid #ef4444;animation:pulse 0.5s infinite alternate}
+.prompt-text .pending{color:#475569}
+.input-area{width:100%}
+.type-input{width:100%;padding:14px 18px;background:rgba(255,255,255,0.05);border:2px solid rgba(255,255,255,0.1);border-radius:8px;color:#e2e8f0;font-size:1.1rem;font-family:'Segoe UI',sans-serif;outline:none;transition:border-color 0.2s}
+.type-input:focus{border-color:rgba(239,68,68,0.5);box-shadow:0 0 20px rgba(239,68,68,0.1)}
+.type-input.error{border-color:#ef4444;animation:shake 0.3s}
+.stats-row{display:flex;gap:24px;font-size:0.8rem;color:#64748b}
+.stats-row b{color:#ef4444}
+.combo{font-size:1.4rem;font-weight:900;color:#ef4444;text-shadow:0 0 20px rgba(239,68,68,0.5);min-height:30px;text-align:center}
+.msg{position:fixed;inset:0;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;z-index:10}
+.msg-box{text-align:center;background:#1a1a2e;padding:36px 52px;border-radius:16px;border:1px solid rgba(239,68,68,0.3)}
+.msg-box h2{font-size:1.8rem;margin-bottom:8px;background:linear-gradient(135deg,#ef4444,#fb923c);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.msg-box p{color:#94a3b8;margin-bottom:16px;line-height:1.6}
+.msg-box button{padding:12px 28px;border:none;border-radius:24px;background:linear-gradient(135deg,#ef4444,#fb923c);color:#fff;font-size:1rem;cursor:pointer;font-weight:700}
+.hidden{display:none!important}
+@keyframes pulse{from{border-color:#ef4444}to{border-color:#fb923c}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="arena">
+  <div class="hp-row">
+    <span class="hp-label you">YOU</span>
+    <div class="hp-track"><div class="hp-fill you-fill" id="youHp" style="width:100%"></div><span class="hp-val you-val" id="youHpTxt">100</span></div>
+    <span class="vs">⚔️</span>
+    <div class="hp-track"><div class="hp-fill ai-fill" id="aiHp" style="width:100%"></div><span class="hp-val ai-val" id="aiHpTxt">100</span></div>
+    <span class="hp-label ai">RIVAL</span>
+  </div>
+  <div class="combo" id="combo"></div>
+  <div class="prompt-box"><div class="prompt-text" id="promptText"></div></div>
+  <div class="input-area"><input class="type-input" id="typeInput" placeholder="Type here..." autofocus></div>
+  <div class="stats-row">
+    <span>WPM: <b id="wpm">0</b></span>
+    <span>Accuracy: <b id="accuracy">100</b>%</span>
+    <span>Damage Dealt: <b id="dmgDealt">0</b></span>
+    <span>Round: <b id="roundNum">1</b>/10</span>
+  </div>
+</div>
+<div class="msg" id="startScreen">
+  <div class="msg-box">
+    <h2>🎸 Riff Rumble</h2>
+    <p>Type faster and more accurately than your rival!<br>Each correct phrase deals damage.<br>Combos multiply your power! 🔥</p>
+    <button onclick="startGame()">ROCK ON 🤘</button>
+  </div>
+</div>
+<div class="msg hidden" id="endScreen">
+  <div class="msg-box"><h2 id="endTitle"></h2><p id="endMsg"></p><button onclick="startGame()">ENCORE</button></div>
+</div>
+<script>
+const PROMPTS=[
+  'thunder and lightning','break the chains','ride the storm','fire in the sky','highway to nowhere',
+  'iron will prevails','shatter the silence','echoes of war','neon rebellion','blood and thunder',
+  'electric overdrive','chaos unleashed','screaming guitars','into the void','burning horizon',
+  'steel and fury','midnight renegade','sonic destruction','wrath of titans','blazing inferno',
+  'crash and burn','velocity rising','phantom voltage','savage frequency','atomic meltdown',
+  'digital warfare','pulse of rebellion','fracture point','zero gravity','raging tempest',
+  'override the system','critical mass','signal override','dark frequencies','power surge detected',
+  'maximum overdrive now','engage turbo mode','full throttle ahead','unstoppable force','break through limits'
+];
+
+let youHP=100,aiHP=100,round=0,maxRounds=10,combo=0,totalChars=0,correctChars=0,totalDmg=0;
+let currentPrompt='',startTime=0,gameActive=false;
+
+function startGame(){
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('endScreen').classList.add('hidden');
+  youHP=100;aiHP=100;round=0;combo=0;totalChars=0;correctChars=0;totalDmg=0;
+  gameActive=true;
+  nextRound();
+}
+
+function nextRound(){
+  round++;
+  if(round>maxRounds||youHP<=0||aiHP<=0){endGame();return;}
+  document.getElementById('roundNum').textContent=round;
+  currentPrompt=PROMPTS[Math.floor(Math.random()*PROMPTS.length)];
+  renderPrompt(0);
+  document.getElementById('typeInput').value='';
+  document.getElementById('typeInput').focus();
+  document.getElementById('typeInput').className='type-input';
+  startTime=Date.now();
+}
+
+function renderPrompt(idx){
+  const chars=currentPrompt.split('');
+  document.getElementById('promptText').innerHTML=chars.map((c,i)=>{
+    if(i<idx)return`<span class="correct">${c}</span>`;
+    if(i===idx)return`<span class="current">${c}</span>`;
+    return`<span class="pending">${c}</span>`;
+  }).join('');
+}
+
+document.getElementById('typeInput').addEventListener('input',e=>{
+  if(!gameActive)return;
+  const typed=e.target.value;
+  const target=currentPrompt;
+  totalChars++;
+  // Check accuracy
+  let matchLen=0;
+  for(let i=0;i<typed.length&&i<target.length;i++){
+    if(typed[i]===target[i])matchLen++;
+    else break;
+  }
+  renderPrompt(matchLen);
+  if(typed.length>0&&typed[typed.length-1]!==target[matchLen-1]&&matchLen<typed.length){
+    document.getElementById('typeInput').className='type-input error';
+    setTimeout(()=>{document.getElementById('typeInput').className='type-input';},300);
+  }
+  correctChars=matchLen;
+  // Complete
+  if(matchLen>=target.length){
+    const elapsed=(Date.now()-startTime)/1000;
+    const wpm=Math.round((target.length/5)/(elapsed/60));
+    const acc=Math.round((correctChars/Math.max(1,typed.length))*100);
+    combo++;
+    const baseDmg=Math.round(wpm*0.15+acc*0.1);
+    const comboMult=Math.min(combo,5);
+    const dmg=baseDmg*comboMult;
+    aiHP=Math.max(0,aiHP-dmg);
+    totalDmg+=dmg;
+    document.getElementById('wpm').textContent=wpm;
+    document.getElementById('accuracy').textContent=acc;
+    document.getElementById('dmgDealt').textContent=totalDmg;
+    document.getElementById('combo').textContent=combo>1?'🔥 '+combo+'x COMBO!':'';
+    // AI attacks back
+    const aiDmg=Math.floor(Math.random()*8)+3;
+    youHP=Math.max(0,youHP-aiDmg);
+    updateHP();
+    setTimeout(nextRound,600);
+  }
+});
+
+function updateHP(){
+  document.getElementById('youHp').style.width=youHP+'%';
+  document.getElementById('youHpTxt').textContent=youHP;
+  document.getElementById('aiHp').style.width=aiHP+'%';
+  document.getElementById('aiHpTxt').textContent=aiHP;
+}
+
+function endGame(){
+  gameActive=false;
+  document.getElementById('endScreen').classList.remove('hidden');
+  const won=aiHP<=0||(youHP>0&&youHP>=aiHP);
+  document.getElementById('endTitle').textContent=won?'🏆 VICTORY!':'💀 DEFEATED';
+  document.getElementById('endMsg').textContent=won
+    ?`You crushed your rival! ${totalDmg} total damage dealt.`
+    :`Your rival was too fast. Try again!`;
+  if(window.parent!==window)window.parent.postMessage({type:'score-submit',gameId:'riff-rumble',score:totalDmg+(won?500:0)},'*');
+}
+</script>
+</body>
+</html>

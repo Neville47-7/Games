@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Neon Drift</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}body{background:#0a0a1a;font-family:'Segoe UI',sans-serif;color:#e2e8f0;height:100vh;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center}
+canvas{border-radius:8px}
+.hud{position:fixed;top:10px;display:flex;gap:20px;font-size:0.85rem;background:rgba(0,0,0,0.6);padding:6px 16px;border-radius:20px;backdrop-filter:blur(8px)}
+.hud b{color:#f472b6}
+.msg{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:10}
+.msg-box{text-align:center;background:#1a1a2e;padding:32px 48px;border-radius:16px;border:1px solid rgba(244,114,182,0.3)}
+.msg-box h2{font-size:1.6rem;margin-bottom:8px;background:linear-gradient(135deg,#f472b6,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.msg-box p{color:#94a3b8;margin-bottom:16px;line-height:1.6;font-size:0.85rem}
+.msg-box button{padding:10px 24px;border:none;border-radius:12px;background:linear-gradient(135deg,#f472b6,#a855f7);color:white;font-size:0.9rem;cursor:pointer;font-weight:700}
+.hidden{display:none!important}
+</style></head><body>
+<div class="hud"><span>⏱ <b id="time">120</b>s</span><span>🏁 Lap: <b id="lap">0</b></span><span>⚡ <b id="speed">0</b> km/h</span><span>Best: <b id="best">--</b></span></div>
+<canvas id="c" width="500" height="500"></canvas>
+<div class="msg" id="startScreen"><div class="msg-box"><h2>🏎️ Neon Drift</h2><p>Arrow keys to steer and accelerate.<br>Drift around the track — best lap time wins!<br>2 minutes on the clock!</p><button onclick="startGame()">Race!</button></div></div>
+<div class="msg hidden" id="endScreen"><div class="msg-box"><h2 id="endTitle"></h2><p id="endMsg"></p><button onclick="location.reload()">Race Again</button></div></div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d'),W=500,H=500;
+const CX=W/2,CY=H/2,OUTER=200,INNER=120;
+let car={x:CX+160,y:CY,angle:-Math.PI/2,speed:0,lap:0,lapStart:0,bestLap:Infinity,checkpoint:false};
+let timeLeft=120,running=false,keys={},animId,timerInt;
+
+function startGame(){
+  document.getElementById('startScreen').classList.add('hidden');
+  car={x:CX+160,y:CY,angle:-Math.PI/2,speed:0,lap:0,lapStart:Date.now(),bestLap:Infinity,checkpoint:false};
+  timeLeft=120;running=true;
+  timerInt=setInterval(()=>{timeLeft--;document.getElementById('time').textContent=timeLeft;if(timeLeft<=0)endGame();},1000);
+  loop();
+}
+
+function loop(){
+  if(!running)return;update();draw();animId=requestAnimationFrame(loop);
+}
+
+function update(){
+  if(keys['ArrowUp'])car.speed=Math.min(car.speed+0.15,5);
+  else if(keys['ArrowDown'])car.speed=Math.max(car.speed-0.1,-2);
+  else car.speed*=0.98;
+  if(keys['ArrowLeft'])car.angle-=0.04*(car.speed>0?1:-1);
+  if(keys['ArrowRight'])car.angle+=0.04*(car.speed>0?1:-1);
+  car.x+=Math.cos(car.angle)*car.speed;car.y+=Math.sin(car.angle)*car.speed;
+  // Track bounds
+  const dx=car.x-CX,dy=car.y-CY,dist=Math.sqrt(dx*dx+dy*dy);
+  if(dist>OUTER||dist<INNER){car.speed*=0.5;
+    const a=Math.atan2(dy,dx),target=dist>OUTER?OUTER-5:INNER+5;
+    car.x=CX+Math.cos(a)*target;car.y=CY+Math.sin(a)*target;
+  }
+  // Checkpoint (bottom half)
+  if(car.y>CY+50)car.checkpoint=true;
+  // Lap detection (crossing start line going right)
+  if(car.checkpoint&&car.y<CY-10&&car.y>CY-60&&car.x>CX+INNER){
+    car.checkpoint=false;car.lap++;
+    const lapTime=(Date.now()-car.lapStart)/1000;
+    if(car.lap>1&&lapTime<car.bestLap)car.bestLap=lapTime;
+    car.lapStart=Date.now();
+    document.getElementById('lap').textContent=car.lap;
+    document.getElementById('best').textContent=car.bestLap<Infinity?car.bestLap.toFixed(1)+'s':'--';
+  }
+  document.getElementById('speed').textContent=Math.round(Math.abs(car.speed)*50);
+}
+
+function draw(){
+  ctx.fillStyle='#0a0a1a';ctx.fillRect(0,0,W,H);
+  // Neon grid
+  ctx.strokeStyle='rgba(168,85,247,0.06)';ctx.lineWidth=0.5;
+  for(let i=0;i<W;i+=25){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,H);ctx.stroke();}
+  for(let i=0;i<H;i+=25){ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(W,i);ctx.stroke();}
+  // Track
+  ctx.strokeStyle='rgba(244,114,182,0.3)';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(CX,CY,OUTER,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.arc(CX,CY,INNER,0,Math.PI*2);ctx.stroke();
+  // Track fill
+  ctx.fillStyle='rgba(168,85,247,0.03)';ctx.beginPath();ctx.arc(CX,CY,OUTER,0,Math.PI*2);ctx.arc(CX,CY,INNER,0,Math.PI*2,true);ctx.fill();
+  // Start line
+  ctx.strokeStyle='#facc15';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(CX+INNER,CY-30);ctx.lineTo(CX+OUTER,CY-30);ctx.stroke();
+  // Car
+  ctx.save();ctx.translate(car.x,car.y);ctx.rotate(car.angle);
+  ctx.fillStyle='#f472b6';ctx.shadowColor='#f472b6';ctx.shadowBlur=20;
+  ctx.fillRect(-10,-6,20,12);
+  // Headlights
+  ctx.fillStyle='#fff';ctx.shadowColor='#fff';ctx.shadowBlur=8;
+  ctx.fillRect(8,-5,4,3);ctx.fillRect(8,2,4,3);
+  ctx.shadowBlur=0;ctx.restore();
+  // Trail
+  ctx.fillStyle='rgba(244,114,182,0.2)';ctx.beginPath();ctx.arc(car.x-Math.cos(car.angle)*12,car.y-Math.sin(car.angle)*12,3,0,Math.PI*2);ctx.fill();
+}
+
+function endGame(){
+  running=false;clearInterval(timerInt);cancelAnimationFrame(animId);
+  document.getElementById('endScreen').classList.remove('hidden');
+  document.getElementById('endTitle').textContent='🏁 Time Up!';
+  document.getElementById('endMsg').textContent=`${car.lap} laps | Best: ${car.bestLap<Infinity?car.bestLap.toFixed(1)+'s':'N/A'}`;
+  if(window.parent!==window)window.parent.postMessage({type:'score-submit',gameId:'neon-drift',score:car.lap*100+(car.bestLap<Infinity?Math.round(1000/car.bestLap):0)},'*');
+}
+
+document.addEventListener('keydown',e=>{keys[e.key]=true;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key))e.preventDefault();});
+document.addEventListener('keyup',e=>{keys[e.key]=false;});
+draw();
+</script></body></html>

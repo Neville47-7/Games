@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Silicon Sprint</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#f0f4f8;font-family:'Segoe UI',sans-serif;color:#1e293b;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+.top{display:flex;justify-content:space-between;align-items:center;padding:10px 20px;background:rgba(255,255,255,0.8);backdrop-filter:blur(12px);border-bottom:1px solid rgba(0,0,0,0.08)}
+.top h2{font-size:1.1rem;background:linear-gradient(135deg,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:800}
+.timer{font-size:1.2rem;font-weight:800;color:#ef4444}
+.scores{display:flex;gap:16px;font-size:0.85rem}.scores b{font-weight:800}
+.main{flex:1;display:flex;gap:12px;padding:12px;overflow:hidden}
+.lane{flex:1;background:rgba(255,255,255,0.6);backdrop-filter:blur(8px);border:1px solid rgba(0,0,0,0.08);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.lane h3{text-align:center;font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;padding:6px;border-radius:8px}
+.lane.you h3{background:rgba(59,130,246,0.1);color:#3b82f6}
+.lane.ai h3{background:rgba(239,68,68,0.1);color:#ef4444}
+.conveyor{flex:1;background:repeating-linear-gradient(90deg,rgba(0,0,0,0.02) 0px,rgba(0,0,0,0.02) 2px,transparent 2px,transparent 20px);border:2px dashed rgba(0,0,0,0.08);border-radius:12px;padding:8px;display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start;overflow-y:auto}
+.phone-slot{width:100%;display:flex;gap:6px;padding:8px;background:rgba(255,255,255,0.8);border-radius:10px;border:1px solid rgba(0,0,0,0.06);align-items:center}
+.phone-slot .icon{font-size:1.5rem}.phone-slot .info{flex:1}.phone-slot .info .model{font-weight:700;font-size:0.85rem}
+.phone-slot .info .parts{font-size:0.7rem;color:#64748b}.phone-slot .status{font-size:0.7rem;font-weight:700;padding:3px 8px;border-radius:6px}
+.status.done{background:rgba(34,197,94,0.1);color:#16a34a}.status.building{background:rgba(251,146,60,0.1);color:#ea580c}
+.bins{background:rgba(255,255,255,0.8);backdrop-filter:blur(8px);border-top:1px solid rgba(0,0,0,0.08);padding:12px 16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.bin{padding:10px 18px;border-radius:12px;border:2px solid rgba(0,0,0,0.08);background:rgba(255,255,255,0.9);cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:6px;font-size:0.85rem;font-weight:600}
+.bin:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,0.1);border-color:rgba(59,130,246,0.3)}
+.bin:active{transform:scale(0.95)}
+.bin .cost{font-size:0.7rem;color:#64748b;font-weight:400}
+.build-btn{padding:12px 36px;border:none;border-radius:12px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;font-size:1rem;font-weight:700;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 20px rgba(59,130,246,0.3)}
+.build-btn:hover{transform:translateY(-2px)}.build-btn:disabled{opacity:0.4;cursor:not-allowed;transform:none}
+.msg{position:fixed;inset:0;background:rgba(0,0,0,0.4);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:10}
+.msg-box{text-align:center;background:white;padding:36px 52px;border-radius:24px;box-shadow:0 20px 60px rgba(0,0,0,0.15)}
+.msg-box h2{font-size:1.8rem;margin-bottom:8px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.msg-box p{color:#64748b;margin-bottom:16px;line-height:1.6}
+.msg-box button{padding:12px 28px;border:none;border-radius:16px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;font-size:1rem;cursor:pointer;font-weight:700}
+.hidden{display:none!important}
+.money{font-size:0.9rem;font-weight:700;color:#16a34a}
+</style>
+</head>
+<body>
+<div class="top">
+  <div><h2>📱 Silicon Sprint</h2></div>
+  <div class="scores"><span>💰 <b class="money" id="money">500</b></span><span>📱 You: <b id="youPhones">0</b></span><span>📱 AI: <b id="aiPhones">0</b></span></div>
+  <div class="timer" id="timer">⏱ 90s</div>
+</div>
+<div class="main">
+  <div class="lane you"><h3>🔵 Your Factory</h3><div class="conveyor" id="yourConveyor"></div></div>
+  <div class="lane ai"><h3>🔴 Rival Factory</h3><div class="conveyor" id="aiConveyor"></div></div>
+</div>
+<div class="bins">
+  <div class="bin" onclick="buyPart('cpu')">🔲 Processor <span class="cost">$80</span></div>
+  <div class="bin" onclick="buyPart('screen')">📱 Screen <span class="cost">$60</span></div>
+  <div class="bin" onclick="buyPart('battery')">🔋 Battery <span class="cost">$40</span></div>
+  <div class="bin" onclick="buyPart('camera')">📷 Camera <span class="cost">$50</span></div>
+  <button class="build-btn" id="buildBtn" onclick="buildPhone()" disabled>🔨 Build Phone</button>
+</div>
+<div class="msg" id="startScreen">
+  <div class="msg-box">
+    <h2>📱 Silicon Sprint</h2>
+    <p>Source components to build flagship phones faster than your rival!<br>Buy parts → Assemble → Ship! Build the most phones in 90 seconds!</p>
+    <button onclick="startGame()">Start Assembly</button>
+  </div>
+</div>
+<div class="msg hidden" id="endScreen">
+  <div class="msg-box"><h2 id="endTitle"></h2><p id="endMsg"></p><button onclick="location.reload()">Play Again</button></div>
+</div>
+<script>
+const COSTS={cpu:80,screen:60,battery:40,camera:50};
+const MODELS=['Galaxy X1','Pixel Pro','iPhone ZZ','OnePlus 99','Xiaomi Ultra','Huawei Max','Oppo Ace','Vivo Elite'];
+let money=500,parts={cpu:0,screen:0,battery:0,camera:0},youPhones=0,aiPhones=0,timeLeft=90,gameActive=false,timerInt,aiInt;
+
+function startGame(){
+  document.getElementById('startScreen').classList.add('hidden');
+  money=500;parts={cpu:0,screen:0,battery:0,camera:0};youPhones=0;aiPhones=0;timeLeft=90;gameActive=true;
+  updateUI();
+  timerInt=setInterval(()=>{timeLeft--;document.getElementById('timer').textContent='⏱ '+timeLeft+'s';if(timeLeft<=0){clearInterval(timerInt);clearInterval(aiInt);endGame();}},1000);
+  aiInt=setInterval(aiAction,2500);
+}
+
+function buyPart(type){
+  if(!gameActive||money<COSTS[type])return;
+  money-=COSTS[type];parts[type]++;updateUI();
+}
+
+function canBuild(){return parts.cpu>=1&&parts.screen>=1&&parts.battery>=1&&parts.camera>=1;}
+
+function buildPhone(){
+  if(!canBuild()||!gameActive)return;
+  parts.cpu--;parts.screen--;parts.battery--;parts.camera--;
+  youPhones++;money+=120;// Revenue
+  const conv=document.getElementById('yourConveyor');
+  const model=MODELS[youPhones%MODELS.length];
+  conv.innerHTML=`<div class="phone-slot"><span class="icon">📱</span><div class="info"><div class="model">${model}</div><div class="parts">#${youPhones} assembled</div></div><span class="status done">✓ Shipped</span></div>`+conv.innerHTML;
+  updateUI();
+}
+
+function aiAction(){
+  if(!gameActive)return;
+  if(Math.random()<0.6){
+    aiPhones++;
+    const conv=document.getElementById('aiConveyor');
+    const model=MODELS[aiPhones%MODELS.length];
+    conv.innerHTML=`<div class="phone-slot"><span class="icon">📱</span><div class="info"><div class="model">${model}</div><div class="parts">#${aiPhones} assembled</div></div><span class="status done">✓ Shipped</span></div>`+conv.innerHTML;
+  }
+  document.getElementById('aiPhones').textContent=aiPhones;
+}
+
+function updateUI(){
+  document.getElementById('money').textContent=money;
+  document.getElementById('youPhones').textContent=youPhones;
+  document.getElementById('aiPhones').textContent=aiPhones;
+  document.getElementById('buildBtn').disabled=!canBuild();
+}
+
+function endGame(){
+  gameActive=false;
+  document.getElementById('endScreen').classList.remove('hidden');
+  const won=youPhones>aiPhones;
+  document.getElementById('endTitle').textContent=won?'🏆 You Win!':'😔 Rival Wins!';
+  document.getElementById('endMsg').textContent=`You: ${youPhones} phones | Rival: ${aiPhones} phones`;
+  if(window.parent!==window)window.parent.postMessage({type:'score-submit',gameId:'silicon-sprint',score:youPhones*100+(won?500:0)},'*');
+}
+</script>
+</body>
+</html>

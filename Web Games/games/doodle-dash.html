@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Doodle Dash</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}body{background:#f0f4f8;font-family:'Segoe UI',sans-serif;color:#1e293b;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+.top{display:flex;justify-content:space-between;align-items:center;padding:8px 16px;background:white;border-bottom:1px solid #e2e8f0}
+.top h2{font-size:1rem;color:#7c3aed;font-weight:800}.timer{font-size:1.1rem;font-weight:800;color:#ef4444}
+.word-hint{font-size:0.9rem;background:rgba(124,58,237,0.1);padding:4px 16px;border-radius:12px;color:#7c3aed;font-weight:600;letter-spacing:2px}
+.main{flex:1;display:flex;overflow:hidden}
+.tools{width:60px;background:white;border-right:1px solid #e2e8f0;padding:8px;display:flex;flex-direction:column;gap:6px;align-items:center}
+.tool-btn{width:36px;height:36px;border-radius:8px;border:2px solid #e2e8f0;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;font-size:1rem}
+.tool-btn:hover{border-color:#7c3aed}.tool-btn.active{border-color:#7c3aed;background:rgba(124,58,237,0.1)}
+.color-btn{width:28px;height:28px;border-radius:50%;border:2px solid transparent;cursor:pointer}
+.color-btn.active{border-color:#1e293b;transform:scale(1.1)}
+.canvas-area{flex:1;display:flex;align-items:center;justify-content:center;padding:8px}
+canvas{background:white;border-radius:12px;box-shadow:0 2px 16px rgba(0,0,0,0.08);cursor:crosshair}
+.chat{width:220px;background:white;border-left:1px solid #e2e8f0;display:flex;flex-direction:column}
+.chat h4{padding:8px 12px;font-size:0.75rem;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;border-bottom:1px solid #f1f5f9}
+.chat-msgs{flex:1;overflow-y:auto;padding:8px 12px;font-size:0.8rem}
+.chat-msg{padding:3px 0;border-bottom:1px solid #f8fafc}.chat-msg b{color:#7c3aed}.chat-msg.correct{color:#16a34a;font-weight:600}
+.chat-input{padding:8px;border-top:1px solid #e2e8f0;display:flex;gap:4px}
+.chat-input input{flex:1;padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.8rem;outline:none}
+.chat-input button{padding:6px 12px;border:none;border-radius:6px;background:#7c3aed;color:white;font-size:0.75rem;cursor:pointer;font-weight:600}
+.msg{position:fixed;inset:0;background:rgba(0,0,0,0.4);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:10}
+.msg-box{text-align:center;background:white;padding:32px 48px;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.15)}
+.msg-box h2{font-size:1.6rem;margin-bottom:8px;background:linear-gradient(135deg,#7c3aed,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.msg-box p{color:#64748b;margin-bottom:16px;line-height:1.6;font-size:0.9rem}
+.msg-box button{padding:10px 24px;border:none;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#ec4899);color:white;font-size:0.9rem;cursor:pointer;font-weight:700}
+.hidden{display:none!important}
+.score-bar{display:flex;gap:12px;font-size:0.75rem;color:#94a3b8}
+.score-bar b{color:#7c3aed}
+</style></head><body>
+<div class="top">
+  <h2>🎨 Doodle Dash</h2>
+  <div class="word-hint" id="wordHint">_ _ _ _ _</div>
+  <div class="score-bar"><span>Score: <b id="score">0</b></span><span>Round: <b id="roundNum">1</b>/8</span></div>
+  <div class="timer" id="timer">⏱ 30s</div>
+</div>
+<div class="main">
+  <div class="tools">
+    <div class="tool-btn active" onclick="setSize(3)" id="s3">✏️</div>
+    <div class="tool-btn" onclick="setSize(8)" id="s8">🖊️</div>
+    <div class="tool-btn" onclick="setSize(16)" id="s16">🖌️</div>
+    <div class="tool-btn" onclick="setEraser()" id="eraser">🧹</div>
+    <div class="tool-btn" onclick="clearCanvas()">🗑️</div>
+    <hr style="width:100%;border:0;border-top:1px solid #e2e8f0">
+    <div class="color-btn active" style="background:#1e293b" onclick="setColor('#1e293b',this)"></div>
+    <div class="color-btn" style="background:#ef4444" onclick="setColor('#ef4444',this)"></div>
+    <div class="color-btn" style="background:#3b82f6" onclick="setColor('#3b82f6',this)"></div>
+    <div class="color-btn" style="background:#22c55e" onclick="setColor('#22c55e',this)"></div>
+    <div class="color-btn" style="background:#f59e0b" onclick="setColor('#f59e0b',this)"></div>
+    <div class="color-btn" style="background:#a855f7" onclick="setColor('#a855f7',this)"></div>
+  </div>
+  <div class="canvas-area"><canvas id="c" width="500" height="400"></canvas></div>
+  <div class="chat"><h4>Guesses</h4><div class="chat-msgs" id="chatMsgs"></div>
+    <div class="chat-input"><input id="chatInput" placeholder="Type guess..." autofocus><button onclick="submitGuess()">Send</button></div></div>
+</div>
+<div class="msg" id="startScreen"><div class="msg-box"><h2>🎨 Doodle Dash</h2><p>Draw the word shown — AI bots will try to guess!<br>Score points for each correct guess. 8 rounds!</p><button onclick="startGame()">Draw!</button></div></div>
+<div class="msg hidden" id="endScreen"><div class="msg-box"><h2 id="endTitle"></h2><p id="endMsg"></p><button onclick="startGame()">Play Again</button></div></div>
+<script>
+const WORDS=['cat','house','sun','tree','car','fish','star','moon','flower','bird','hat','book','apple','ball','heart','boat','cloud','pizza','guitar','rocket','rainbow','mountain','phone','chair','clock'];
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+let drawing=false,color='#1e293b',lineWidth=3,isEraser=false;
+let score=0,round=0,maxRounds=8,currentWord='',timeLeft=30,timer,gameActive=false,botGuessTimer;
+
+function setColor(c,btn){color=c;isEraser=false;document.querySelectorAll('.color-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
+function setSize(s){lineWidth=s;isEraser=false;document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active'));document.getElementById('s'+s).classList.add('active');}
+function setEraser(){isEraser=true;document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active'));document.getElementById('eraser').classList.add('active');}
+function clearCanvas(){ctx.fillStyle='#fff';ctx.fillRect(0,0,500,400);}
+
+canvas.addEventListener('mousedown',e=>{drawing=true;ctx.beginPath();const r=canvas.getBoundingClientRect();ctx.moveTo(e.clientX-r.left,e.clientY-r.top);});
+canvas.addEventListener('mousemove',e=>{if(!drawing)return;const r=canvas.getBoundingClientRect();const x=e.clientX-r.left,y=e.clientY-r.top;
+  ctx.strokeStyle=isEraser?'#fff':color;ctx.lineWidth=isEraser?20:lineWidth;ctx.lineCap='round';ctx.lineJoin='round';ctx.lineTo(x,y);ctx.stroke();});
+canvas.addEventListener('mouseup',()=>drawing=false);canvas.addEventListener('mouseleave',()=>drawing=false);
+
+function startGame(){
+  document.getElementById('startScreen').classList.add('hidden');document.getElementById('endScreen').classList.add('hidden');
+  score=0;round=0;gameActive=true;document.getElementById('chatMsgs').innerHTML='';nextRound();
+}
+
+function nextRound(){
+  round++;if(round>maxRounds){endGame();return;}
+  clearCanvas();timeLeft=30;
+  currentWord=WORDS[Math.floor(Math.random()*WORDS.length)];
+  document.getElementById('wordHint').textContent=currentWord.split('').map((_,i)=>i===0?currentWord[0]:'_').join(' ');
+  document.getElementById('roundNum').textContent=round;document.getElementById('score').textContent=score;
+  clearInterval(timer);clearTimeout(botGuessTimer);
+  timer=setInterval(()=>{timeLeft--;document.getElementById('timer').textContent='⏱ '+timeLeft+'s';if(timeLeft<=0){clearInterval(timer);addChat('System','Time up! The word was: '+currentWord,'');setTimeout(nextRound,1500);}},1000);
+  // Bot guesses
+  scheduleBotGuess();
+}
+
+function scheduleBotGuess(){
+  botGuessTimer=setTimeout(()=>{
+    if(!gameActive||timeLeft<=0)return;
+    const bots=['Bot_Alex','Bot_Mia','Bot_Sam'];
+    const bot=bots[Math.floor(Math.random()*bots.length)];
+    const wrongGuesses=WORDS.filter(w=>w!==currentWord);
+    if(Math.random()<0.3&&timeLeft<20){
+      addChat(bot,currentWord,'correct');score+=timeLeft*5;
+      document.getElementById('score').textContent=score;clearInterval(timer);
+      setTimeout(nextRound,1500);
+    }else{
+      addChat(bot,wrongGuesses[Math.floor(Math.random()*wrongGuesses.length)],'');
+      scheduleBotGuess();
+    }
+  },3000+Math.random()*4000);
+}
+
+function submitGuess(){
+  const input=document.getElementById('chatInput');const guess=input.value.trim().toLowerCase();input.value='';
+  if(!guess||!gameActive)return;
+  addChat('You',guess,guess===currentWord?'correct':'');
+  if(guess===currentWord){score+=timeLeft*10+100;document.getElementById('score').textContent=score;
+    clearInterval(timer);clearTimeout(botGuessTimer);
+    addChat('System','🎉 Correct! +'+((timeLeft*10+100))+' points','correct');
+    setTimeout(nextRound,1500);
+  }
+}
+
+function addChat(user,msg,cls){
+  const div=document.getElementById('chatMsgs');
+  div.innerHTML+=`<div class="chat-msg ${cls}"><b>${user}:</b> ${msg}</div>`;
+  div.scrollTop=div.scrollHeight;
+}
+
+function endGame(){
+  gameActive=false;clearInterval(timer);clearTimeout(botGuessTimer);
+  document.getElementById('endScreen').classList.remove('hidden');
+  document.getElementById('endTitle').textContent='🎨 Game Over!';
+  document.getElementById('endMsg').textContent='Final Score: '+score;
+  if(window.parent!==window)window.parent.postMessage({type:'score-submit',gameId:'doodle-dash',score:score},'*');
+}
+
+document.getElementById('chatInput').addEventListener('keydown',e=>{if(e.key==='Enter')submitGuess();});
+clearCanvas();
+</script></body></html>

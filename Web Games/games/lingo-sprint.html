@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Lingo Sprint</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0f172a;font-family:'Segoe UI',sans-serif;color:#e2e8f0;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+.track-area{flex:1;position:relative;background:linear-gradient(180deg,#1e3a5f 0%,#0f172a 100%);overflow:hidden}
+.track{position:absolute;bottom:40px;left:0;right:0;height:80px;display:flex;align-items:center}
+.track-bg{position:absolute;inset:0;background:repeating-linear-gradient(90deg,rgba(255,255,255,0.03) 0px,rgba(255,255,255,0.03) 1px,transparent 1px,transparent 60px);animation:scroll 2s linear infinite}
+.track-lines{position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(255,255,255,0.1)}
+.track-lines.top{bottom:auto;top:0}
+.avatar{position:absolute;bottom:15px;transition:left 0.4s;font-size:2.2rem;filter:drop-shadow(0 0 8px rgba(0,0,0,0.5))}
+.avatar.you{bottom:20px}
+.avatar.ai{bottom:48px}
+.finish{position:absolute;right:30px;top:0;bottom:0;width:4px;background:repeating-linear-gradient(180deg,#facc15 0px,#facc15 8px,#1a1a2e 8px,#1a1a2e 16px)}
+.progress-bar{position:absolute;top:10px;left:20px;right:20px;display:flex;gap:6px;align-items:center}
+.prog-track{flex:1;height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden}
+.prog-fill{height:100%;border-radius:3px;transition:width 0.3s}
+.prog-fill.you-p{background:#3b82f6}
+.prog-fill.ai-p{background:#fb923c}
+.prog-label{font-size:0.7rem;min-width:50px}
+.prog-label.you-l{color:#3b82f6;text-align:right}
+.prog-label.ai-l{color:#fb923c}
+.scenery{position:absolute;bottom:120px;font-size:1.5rem;opacity:0.3}
+.quiz-area{background:#1e293b;border-top:2px solid rgba(59,130,246,0.3);padding:20px 24px;display:flex;flex-direction:column;align-items:center;gap:14px}
+.lang-badge{font-size:0.7rem;padding:4px 12px;border-radius:12px;background:rgba(59,130,246,0.15);color:#60a5fa;font-weight:600;text-transform:uppercase;letter-spacing:1px}
+.word-card{background:rgba(255,255,255,0.05);border:2px solid rgba(255,255,255,0.1);border-radius:14px;padding:20px 40px;text-align:center;min-width:280px}
+.word-card .word{font-size:2rem;font-weight:800;margin-bottom:4px}
+.word-card .hint{font-size:0.8rem;color:#64748b}
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;max-width:500px}
+.choice{padding:12px 16px;border:2px solid rgba(255,255,255,0.1);border-radius:10px;background:rgba(255,255,255,0.03);color:#e2e8f0;font-size:0.95rem;font-weight:600;cursor:pointer;transition:all 0.2s;text-align:center}
+.choice:hover{border-color:rgba(59,130,246,0.4);background:rgba(59,130,246,0.1)}
+.choice.correct{border-color:#22c55e;background:rgba(34,197,94,0.15);color:#22c55e}
+.choice.wrong{border-color:#ef4444;background:rgba(239,68,68,0.15);color:#ef4444}
+.choice:disabled{cursor:not-allowed;opacity:0.7}
+.stats{display:flex;gap:20px;font-size:0.8rem;color:#94a3b8}
+.stats b{color:#60a5fa}
+.msg{position:fixed;inset:0;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;z-index:10}
+.msg-box{text-align:center;background:#1e293b;padding:36px 52px;border-radius:20px;border:1px solid rgba(59,130,246,0.3)}
+.msg-box h2{font-size:1.8rem;margin-bottom:8px;background:linear-gradient(135deg,#3b82f6,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.msg-box p{color:#94a3b8;margin-bottom:16px;line-height:1.6}
+.msg-box button{padding:12px 28px;border:none;border-radius:24px;background:linear-gradient(135deg,#3b82f6,#06b6d4);color:#fff;font-size:1rem;cursor:pointer;font-weight:700}
+.hidden{display:none!important}
+@keyframes scroll{from{background-position:0 0}to{background-position:60px 0}}
+</style>
+</head>
+<body>
+<div class="track-area">
+  <div class="progress-bar">
+    <span class="prog-label you-l">🏃 You</span>
+    <div class="prog-track"><div class="prog-fill you-p" id="youProg" style="width:0%"></div></div>
+    <span style="color:#64748b;font-size:0.7rem" id="distTxt">0/15</span>
+    <div class="prog-track"><div class="prog-fill ai-p" id="aiProg" style="width:0%"></div></div>
+    <span class="prog-label ai-l">🤖 Rival</span>
+  </div>
+  <div id="sceneryArea"></div>
+  <div class="track">
+    <div class="track-bg"></div>
+    <div class="track-lines"></div>
+    <div class="track-lines top"></div>
+    <div class="avatar you" id="youAvatar" style="left:5%">🏃</div>
+    <div class="avatar ai" id="aiAvatar" style="left:5%">🤖</div>
+    <div class="finish"></div>
+  </div>
+</div>
+<div class="quiz-area">
+  <div class="lang-badge" id="langBadge">Spanish → English</div>
+  <div class="word-card"><div class="word" id="wordText">—</div><div class="hint" id="wordHint"></div></div>
+  <div class="choices" id="choices"></div>
+  <div class="stats"><span>✅ Correct: <b id="correctCount">0</b></span><span>❌ Wrong: <b id="wrongCount">0</b></span><span>⏱️ Streak: <b id="streak">0</b></span></div>
+</div>
+<div class="msg" id="startScreen">
+  <div class="msg-box">
+    <h2>🌍 Lingo Sprint</h2>
+    <p>Race to the finish by translating words correctly!<br>Wrong answers slow you down. Streaks give bonus speed! 🔥</p>
+    <button onclick="startGame()">START RACE</button>
+  </div>
+</div>
+<div class="msg hidden" id="endScreen">
+  <div class="msg-box"><h2 id="endTitle"></h2><p id="endMsg"></p><button onclick="startGame()">RACE AGAIN</button></div>
+</div>
+<script>
+const DICT=[
+  {word:'gato',answer:'cat',choices:['cat','dog','bird','fish'],lang:'Spanish'},
+  {word:'perro',answer:'dog',choices:['cat','dog','sun','star'],lang:'Spanish'},
+  {word:'casa',answer:'house',choices:['house','car','tree','book'],lang:'Spanish'},
+  {word:'agua',answer:'water',choices:['fire','water','earth','wind'],lang:'Spanish'},
+  {word:'sol',answer:'sun',choices:['moon','sun','rain','snow'],lang:'Spanish'},
+  {word:'luna',answer:'moon',choices:['star','moon','cloud','sun'],lang:'Spanish'},
+  {word:'libro',answer:'book',choices:['book','pen','desk','chair'],lang:'Spanish'},
+  {word:'fuego',answer:'fire',choices:['water','ice','fire','wind'],lang:'Spanish'},
+  {word:'árbol',answer:'tree',choices:['flower','tree','grass','leaf'],lang:'Spanish'},
+  {word:'cielo',answer:'sky',choices:['ground','sky','sea','river'],lang:'Spanish'},
+  {word:'Hund',answer:'dog',choices:['cat','dog','horse','bird'],lang:'German'},
+  {word:'Katze',answer:'cat',choices:['cat','mouse','dog','fish'],lang:'German'},
+  {word:'Haus',answer:'house',choices:['house','garden','street','town'],lang:'German'},
+  {word:'Wasser',answer:'water',choices:['water','milk','juice','wine'],lang:'German'},
+  {word:'Buch',answer:'book',choices:['pen','paper','book','card'],lang:'German'},
+  {word:'Baum',answer:'tree',choices:['bush','tree','flower','root'],lang:'German'},
+  {word:'Stern',answer:'star',choices:['star','moon','sun','cloud'],lang:'German'},
+  {word:'Feuer',answer:'fire',choices:['water','fire','ice','wind'],lang:'German'},
+  {word:'chat',answer:'cat',choices:['cat','hat','rat','bat'],lang:'French'},
+  {word:'chien',answer:'dog',choices:['dog','pig','cow','hen'],lang:'French'},
+  {word:'maison',answer:'house',choices:['house','mouse','horse','goose'],lang:'French'},
+  {word:'eau',answer:'water',choices:['water','wine','oil','tea'],lang:'French'},
+  {word:'soleil',answer:'sun',choices:['moon','sun','star','sky'],lang:'French'},
+  {word:'fleur',answer:'flower',choices:['tree','flower','leaf','root'],lang:'French'},
+  {word:'livre',answer:'book',choices:['book','page','word','line'],lang:'French'},
+];
+
+const FINISH=15;let youPos=0,aiPos=0,correct=0,wrong=0,streak=0,qIdx=0,shuffled=[],gameActive=false;
+
+function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
+
+function startGame(){
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('endScreen').classList.add('hidden');
+  youPos=0;aiPos=0;correct=0;wrong=0;streak=0;qIdx=0;
+  shuffled=shuffle(DICT);gameActive=true;
+  updatePositions();nextQuestion();
+  // Scenery
+  const sa=document.getElementById('sceneryArea');sa.innerHTML='';
+  const items=['🌲','🌳','🏠','🏢','⛪','🌴','🏔️','🌻'];
+  for(let i=0;i<8;i++){
+    const s=document.createElement('div');s.className='scenery';
+    s.style.left=(10+i*12)+'%';s.style.bottom=(130+Math.random()*40)+'px';
+    s.textContent=items[i];sa.appendChild(s);
+  }
+}
+
+function nextQuestion(){
+  if(!gameActive)return;
+  if(youPos>=FINISH||aiPos>=FINISH){endGame();return;}
+  const q=shuffled[qIdx%shuffled.length];qIdx++;
+  document.getElementById('langBadge').textContent=q.lang+' → English';
+  document.getElementById('wordText').textContent=q.word;
+  document.getElementById('wordHint').textContent='Translate to English';
+  const opts=shuffle(q.choices);
+  document.getElementById('choices').innerHTML=opts.map(o=>
+    `<button class="choice" onclick="answer('${o}','${q.answer}',this)">${o}</button>`
+  ).join('');
+}
+
+function answer(picked,correct_ans,btn){
+  if(!gameActive)return;
+  const btns=document.querySelectorAll('.choice');
+  btns.forEach(b=>{b.disabled=true;if(b.textContent===correct_ans)b.classList.add('correct');});
+  if(picked===correct_ans){
+    correct++;streak++;
+    const bonus=streak>=3?2:1;
+    youPos=Math.min(FINISH,youPos+bonus);
+  }else{
+    wrong++;streak=0;btn.classList.add('wrong');
+  }
+  // AI moves
+  if(Math.random()<0.6)aiPos=Math.min(FINISH,aiPos+1);
+  updatePositions();updateStats();
+  setTimeout(()=>{
+    if(youPos>=FINISH||aiPos>=FINISH)endGame();
+    else nextQuestion();
+  },700);
+}
+
+function updatePositions(){
+  const yPct=5+(youPos/FINISH)*85;
+  const aPct=5+(aiPos/FINISH)*85;
+  document.getElementById('youAvatar').style.left=yPct+'%';
+  document.getElementById('aiAvatar').style.left=aPct+'%';
+  document.getElementById('youProg').style.width=(youPos/FINISH*100)+'%';
+  document.getElementById('aiProg').style.width=(aiPos/FINISH*100)+'%';
+  document.getElementById('distTxt').textContent=youPos+'/'+FINISH;
+}
+
+function updateStats(){
+  document.getElementById('correctCount').textContent=correct;
+  document.getElementById('wrongCount').textContent=wrong;
+  document.getElementById('streak').textContent=streak;
+}
+
+function endGame(){
+  gameActive=false;
+  document.getElementById('endScreen').classList.remove('hidden');
+  const won=youPos>=FINISH&&(aiPos<FINISH||youPos>aiPos);
+  document.getElementById('endTitle').textContent=won?'🏆 You Win!':'😔 Rival Wins!';
+  document.getElementById('endMsg').textContent=won
+    ?`You reached the finish! ${correct} correct, ${wrong} wrong.`
+    :`The rival reached the finish first. Keep practicing!`;
+  if(window.parent!==window)window.parent.postMessage({type:'score-submit',gameId:'lingo-sprint',score:correct*100-wrong*30+(won?500:0)},'*');
+}
+</script>
+</body>
+</html>

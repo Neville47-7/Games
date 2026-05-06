@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Bomb Words</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}body{background:#1a0a2e;font-family:'Segoe UI',sans-serif;color:#e2e8f0;height:100vh;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.arena{width:500px;max-width:95vw;display:flex;flex-direction:column;align-items:center;gap:16px}
+.players-ring{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.player-av{width:64px;text-align:center;transition:all 0.3s}
+.player-av .face{font-size:2rem;width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #333;margin:0 auto 4px}
+.player-av.active .face{border-color:#facc15;box-shadow:0 0 16px rgba(250,204,21,0.4);animation:pulse 0.5s infinite alternate}
+.player-av.dead .face{opacity:0.3;filter:grayscale(1)}.player-av .name{font-size:0.65rem;color:#94a3b8}
+.bomb-area{text-align:center;margin:10px 0}
+.bomb{font-size:4rem;animation:shake 0.3s infinite alternate}
+.bomb-timer{font-size:1.5rem;font-weight:900;color:#ef4444;text-shadow:0 0 10px rgba(239,68,68,0.5)}
+.prev-word{font-size:1rem;color:#a78bfa;font-weight:700;margin-bottom:4px}
+.last-letter{font-size:1.4rem;font-weight:900;color:#facc15;text-shadow:0 0 10px rgba(250,204,21,0.5)}
+.input-row{display:flex;gap:8px;width:100%}
+.word-input{flex:1;padding:14px 18px;border-radius:12px;background:rgba(255,255,255,0.05);border:2px solid rgba(250,204,21,0.2);color:#e2e8f0;font-size:1.2rem;outline:none;text-align:center;font-family:'Segoe UI',sans-serif}
+.word-input:focus{border-color:#facc15;box-shadow:0 0 20px rgba(250,204,21,0.15)}
+.word-input:disabled{opacity:0.3}
+.feedback{min-height:24px;font-size:0.9rem;font-weight:600;text-align:center}
+.feedback.ok{color:#22c55e}.feedback.bad{color:#ef4444}
+.score-row{font-size:0.85rem;color:#94a3b8}.score-row b{color:#facc15}
+.msg{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:10}
+.msg-box{text-align:center;background:#1a0a2e;padding:32px 48px;border-radius:20px;border:1px solid rgba(250,204,21,0.3)}
+.msg-box h2{font-size:1.6rem;margin-bottom:8px;background:linear-gradient(135deg,#facc15,#fb923c);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.msg-box p{color:#94a3b8;margin-bottom:16px;line-height:1.6;font-size:0.85rem}
+.msg-box button{padding:10px 24px;border:none;border-radius:12px;background:linear-gradient(135deg,#facc15,#fb923c);color:#1a0a2e;font-size:0.9rem;cursor:pointer;font-weight:700}
+.hidden{display:none!important}
+@keyframes pulse{from{transform:scale(1)}to{transform:scale(1.05)}}
+@keyframes shake{from{transform:rotate(-3deg)}to{transform:rotate(3deg)}}
+</style></head><body>
+<div class="arena">
+  <div class="players-ring" id="playersRing"></div>
+  <div class="bomb-area"><div class="bomb">💣</div><div class="bomb-timer" id="bombTimer">5</div></div>
+  <div class="prev-word">Start with any word!</div>
+  <div class="last-letter" id="lastLetter">Any</div>
+  <div class="feedback" id="feedback"></div>
+  <div class="input-row"><input class="word-input" id="wordInput" placeholder="Type a word..." autofocus></div>
+  <div class="score-row">Survived: <b id="survived">0</b> rounds | Words: <b id="words">0</b></div>
+</div>
+<div class="msg" id="startScreen"><div class="msg-box"><h2>💣 Bomb Words</h2><p>Type a word starting with the last letter of the previous word!<br>If the bomb explodes on your turn — you're out!<br>Be the last one standing!</p><button onclick="startGame()">Start!</button></div></div>
+<div class="msg hidden" id="endScreen"><div class="msg-box"><h2 id="endTitle"></h2><p id="endMsg"></p><button onclick="startGame()">Play Again</button></div></div>
+<script>
+const FACES=['😀','🤖','👾','🦊','🐱','🎃'];
+const AI_WORDS={a:['apple','ant','arrow','air'],b:['bear','book','blue','ball'],c:['cat','car','cloud','candy'],d:['dog','door','dark','dust'],e:['egg','eye','earth','echo'],f:['fish','fire','frog','flag'],g:['goat','gold','green','grape'],h:['hat','home','hill','heart'],i:['ice','iron','idea','island'],j:['jam','jump','jet','jungle'],k:['key','king','kite','knife'],l:['lion','lake','leaf','lamp'],m:['moon','map','milk','mouse'],n:['net','nose','night','nest'],o:['owl','orange','ocean','olive'],p:['pig','pen','plant','pizza'],q:['queen','quiz','quiet','quilt'],r:['rain','rock','road','rose'],s:['sun','star','snow','sand'],t:['tree','tiger','time','town'],u:['umbrella','unit','up','under'],v:['van','vine','voice','violet'],w:['wind','wolf','water','wave'],x:['xray','xenon'],y:['yellow','yarn','year','yak'],z:['zoo','zebra','zone','zero']};
+let players=[],currentPlayer=0,bombTime=5,bombInt,usedWords=new Set(),lastLetter='',totalWords=0,survived=0,gameActive=false;
+
+function startGame(){
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('endScreen').classList.add('hidden');
+  players=[{name:'You',face:FACES[0],alive:true,isHuman:true}];
+  for(let i=1;i<5;i++)players.push({name:'Bot '+i,face:FACES[i],alive:true,isHuman:false});
+  currentPlayer=0;usedWords.clear();lastLetter='';totalWords=0;survived=0;gameActive=true;
+  renderPlayers();startTurn();
+}
+
+function renderPlayers(){
+  document.getElementById('playersRing').innerHTML=players.map((p,i)=>
+    `<div class="player-av${i===currentPlayer?' active':''}${!p.alive?' dead':''}"><div class="face">${p.face}</div><div class="name">${p.name}</div></div>`
+  ).join('');
+}
+
+function startTurn(){
+  if(!gameActive)return;
+  // Skip dead players
+  let tries=0;
+  while(!players[currentPlayer].alive&&tries<players.length){currentPlayer=(currentPlayer+1)%players.length;tries++;}
+  if(players.filter(p=>p.alive).length<=1){endGame();return;}
+  renderPlayers();bombTime=Math.max(3,7-Math.floor(survived/3));
+  document.getElementById('bombTimer').textContent=bombTime;
+  document.getElementById('feedback').textContent='';document.getElementById('feedback').className='feedback';
+  document.getElementById('lastLetter').textContent=lastLetter||'Any';
+  document.getElementById('wordInput').value='';
+  if(players[currentPlayer].isHuman){
+    document.getElementById('wordInput').disabled=false;document.getElementById('wordInput').focus();
+    clearInterval(bombInt);
+    bombInt=setInterval(()=>{bombTime--;document.getElementById('bombTimer').textContent=bombTime;if(bombTime<=0){clearInterval(bombInt);eliminate();}},1000);
+  }else{
+    document.getElementById('wordInput').disabled=true;
+    setTimeout(aiPlay,800+Math.random()*1500);
+    clearInterval(bombInt);
+    bombInt=setInterval(()=>{bombTime--;document.getElementById('bombTimer').textContent=bombTime;if(bombTime<=0){clearInterval(bombInt);eliminate();}},1000);
+  }
+}
+
+function aiPlay(){
+  if(!gameActive||!players[currentPlayer].alive)return;
+  const letter=lastLetter||'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random()*26)];
+  const pool=(AI_WORDS[letter]||['apple']).filter(w=>!usedWords.has(w));
+  if(pool.length>0&&Math.random()<0.85){
+    const word=pool[Math.floor(Math.random()*pool.length)];
+    submitWord(word);
+  }else eliminate();
+}
+
+function submitWord(word){
+  word=word.toLowerCase().trim();
+  if(!word){return;}
+  if(usedWords.has(word)){document.getElementById('feedback').textContent='❌ Already used!';document.getElementById('feedback').className='feedback bad';return;}
+  if(lastLetter&&word[0]!==lastLetter){document.getElementById('feedback').textContent=`❌ Must start with "${lastLetter}"!`;document.getElementById('feedback').className='feedback bad';return;}
+  clearInterval(bombInt);usedWords.add(word);
+  lastLetter=word[word.length-1];totalWords++;
+  document.getElementById('words').textContent=totalWords;
+  document.querySelector('.prev-word').textContent=word;
+  document.getElementById('feedback').textContent='✅ '+players[currentPlayer].name+': '+word;
+  document.getElementById('feedback').className='feedback ok';
+  if(players[currentPlayer].isHuman)survived++;
+  document.getElementById('survived').textContent=survived;
+  currentPlayer=(currentPlayer+1)%players.length;
+  setTimeout(startTurn,600);
+}
+
+function eliminate(){
+  clearInterval(bombInt);
+  document.getElementById('feedback').textContent='💥 '+players[currentPlayer].name+' exploded!';
+  document.getElementById('feedback').className='feedback bad';
+  players[currentPlayer].alive=false;renderPlayers();
+  if(!players[0].alive||players.filter(p=>p.alive).length<=1){setTimeout(endGame,1000);return;}
+  currentPlayer=(currentPlayer+1)%players.length;
+  setTimeout(startTurn,1000);
+}
+
+function endGame(){
+  gameActive=false;clearInterval(bombInt);
+  document.getElementById('endScreen').classList.remove('hidden');
+  const won=players[0].alive&&players.filter(p=>p.alive).length===1;
+  document.getElementById('endTitle').textContent=won?'🏆 Last One Standing!':'💥 Boom!';
+  document.getElementById('endMsg').textContent=`Survived ${survived} rounds, ${totalWords} words played.`;
+  if(window.parent!==window)window.parent.postMessage({type:'score-submit',gameId:'bomb-words',score:survived*50+totalWords*10+(won?500:0)},'*');
+}
+
+document.getElementById('wordInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&players[currentPlayer].isHuman)submitWord(e.target.value);});
+</script></body></html>

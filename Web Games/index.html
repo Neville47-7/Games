@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="PlayZone — Free-to-play web games portal with online multiplayer. Play 14+ games instantly in your browser.">
+  <title>PlayZone — Free Web Games</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
+</head>
+<body>
+  <canvas id="particles-canvas"></canvas>
+
+  <!-- Auth Bar (top-right) -->
+  <div class="auth-bar" id="auth-bar"></div>
+
+  <div class="app-container">
+    <header class="hub-header">
+      <h1 class="hub-header__logo">Play<span>Zone</span></h1>
+      <p class="hub-header__tagline">Free Games • Online Multiplayer • Play Instantly</p>
+      <div class="hub-header__stats">
+        <div class="stat-badge"><span class="stat-badge__icon">🎮</span><span class="stat-badge__value" id="game-count">14</span> Games</div>
+        <div class="stat-badge"><span class="stat-badge__icon">🌐</span><span class="stat-badge__value">Online</span> Play</div>
+        <div class="stat-badge"><span class="stat-badge__icon">🏆</span><span class="stat-badge__value" id="total-players">0</span> Players</div>
+        <div class="stat-badge"><span class="stat-badge__icon">⚡</span>Instant <span class="stat-badge__value">Play</span></div>
+      </div>
+    </header>
+
+    <div class="controls-bar">
+      <div class="search-container">
+        <span class="search-container__icon">🔍</span>
+        <input type="text" id="search-input" class="search-input" placeholder="Search games..." autocomplete="off">
+      </div>
+      <div class="category-tabs" id="category-tabs"></div>
+    </div>
+
+    <main class="game-grid" id="game-grid"></main>
+
+    <footer class="hub-footer">
+      <p>🎮 PlayZone — All games are free to play. Built with HTML5, CSS & JavaScript.</p>
+    </footer>
+  </div>
+
+  <!-- Login Modal -->
+  <div class="login-modal" id="login-modal">
+    <div class="login-modal__card">
+      <h2>👤 Join PlayZone</h2>
+      <p>Enter a username to save scores, unlock leaderboards, and play online!</p>
+      <input type="text" id="login-username" placeholder="Enter username..." maxlength="20" autocomplete="off">
+      <div class="btn-row">
+        <button class="login-cancel" onclick="closeLogin()">Skip</button>
+        <button class="login-submit" onclick="doLogin()">Join</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mode Selector Modal -->
+  <div class="mode-modal" id="mode-modal">
+    <div class="mode-modal__card" id="mode-modal-content"></div>
+  </div>
+
+  <!-- Leaderboard Panel -->
+  <div class="lb-overlay" id="lb-overlay" onclick="toggleLeaderboard()"></div>
+  <div class="leaderboard-panel" id="lb-panel">
+    <button class="leaderboard-panel__close" onclick="toggleLeaderboard()">✕</button>
+    <h2>🏆 Leaderboards</h2>
+    <div id="lb-profile"></div>
+    <div class="lb-tabs" id="lb-tabs"></div>
+    <div id="lb-content"></div>
+  </div>
+  <button class="leaderboard-btn" onclick="toggleLeaderboard()" title="Leaderboards">🏆</button>
+
+  <!-- Game Overlay -->
+  <div class="game-overlay" id="game-overlay">
+    <div class="game-overlay__header">
+      <div class="game-overlay__title" id="overlay-title"></div>
+      <button class="game-overlay__close" onclick="closeGame()" title="Close (ESC)">✕</button>
+    </div>
+    <iframe class="game-overlay__frame" id="game-frame" sandbox="allow-scripts allow-same-origin"></iframe>
+  </div>
+
+  <script src="js/particles.js"></script>
+  <script src="js/online.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

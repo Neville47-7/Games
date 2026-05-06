@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Node Racer</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}body{background:#0f172a;font-family:'Segoe UI',sans-serif;color:#e2e8f0;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+.top{display:flex;justify-content:space-between;padding:8px 16px;background:rgba(0,0,0,0.3);border-bottom:1px solid rgba(59,130,246,0.2);font-size:0.85rem}
+.top b{color:#3b82f6}
+canvas{flex:1;display:block;cursor:pointer}
+.progress{display:flex;gap:8px;padding:6px 16px;background:rgba(0,0,0,0.3);border-top:1px solid rgba(255,255,255,0.06);align-items:center;font-size:0.75rem}
+.prog-track{flex:1;height:8px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden}
+.prog-fill{height:100%;border-radius:4px;transition:width 0.3s}
+.prog-fill.you{background:#3b82f6}.prog-fill.ai{background:#ef4444}
+.msg{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:10}
+.msg-box{text-align:center;background:#1e293b;padding:32px 48px;border-radius:16px;border:1px solid rgba(59,130,246,0.3)}
+.msg-box h2{font-size:1.6rem;margin-bottom:8px;background:linear-gradient(135deg,#3b82f6,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.msg-box p{color:#94a3b8;margin-bottom:16px;line-height:1.6;font-size:0.85rem}
+.msg-box button{padding:10px 24px;border:none;border-radius:12px;background:linear-gradient(135deg,#3b82f6,#06b6d4);color:white;font-size:0.9rem;cursor:pointer;font-weight:700}
+.hidden{display:none!important}
+</style></head><body>
+<div class="top"><span>🌐 Node Racer</span><span>Routed: <b id="youRouted">0</b> / <b id="totalPackets">10</b></span><span>⏱ <b id="timer">60</b>s</span></div>
+<canvas id="c"></canvas>
+<div class="progress">
+  <span style="color:#3b82f6">You</span><div class="prog-track"><div class="prog-fill you" id="youProg" style="width:0%"></div></div>
+  <span style="color:#ef4444">Rival</span><div class="prog-track"><div class="prog-fill ai" id="aiProg" style="width:0%"></div></div>
+</div>
+<div class="msg" id="startScreen"><div class="msg-box"><h2>🌐 Node Racer</h2><p>Click nodes to build routes and deliver data packets!<br>Connect source → destination faster than the rival.</p><button onclick="startGame()">Connect!</button></div></div>
+<div class="msg hidden" id="endScreen"><div class="msg-box"><h2 id="endTitle"></h2><p id="endMsg"></p><button onclick="location.reload()">Reroute</button></div></div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+let W,H;function resize(){W=canvas.width=canvas.clientWidth;H=canvas.height=canvas.clientHeight;}
+resize();window.onresize=resize;
+const rnd=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+
+let nodes=[],edges=[],playerEdges=[],aiEdges=[],packets=10,youRouted=0,aiRouted=0;
+let selectedNode=null,timeLeft=60,gameActive=false,timerInt,aiInt;
+
+function genGraph(){
+  nodes=[];edges=[];playerEdges=[];aiEdges=[];
+  const cols=5,rows=3;
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    nodes.push({x:80+c*(W-160)/(cols-1)+rnd(-15,15),y:60+r*(H-120)/(rows-1)+rnd(-15,15),id:nodes.length});
+  }
+  // Generate possible edges
+  for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){
+    const dx=nodes[i].x-nodes[j].x,dy=nodes[i].y-nodes[j].y,dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist<(W-100)/(cols-1)*1.5)edges.push({from:i,to:j,dist});
+  }
+}
+
+function startGame(){
+  document.getElementById('startScreen').classList.add('hidden');
+  genGraph();youRouted=0;aiRouted=0;timeLeft=60;gameActive=true;selectedNode=null;
+  updateUI();draw();
+  timerInt=setInterval(()=>{timeLeft--;document.getElementById('timer').textContent=timeLeft;if(timeLeft<=0)endGame();},1000);
+  aiInt=setInterval(aiTurn,2000);
+}
+
+canvas.addEventListener('click',e=>{
+  if(!gameActive)return;
+  const rect=canvas.getBoundingClientRect();
+  const mx=e.clientX-rect.left,my=e.clientY-rect.top;
+  const clicked=nodes.find(n=>Math.hypot(n.x-mx,n.y-my)<18);
+  if(!clicked)return;
+  if(selectedNode===null){selectedNode=clicked.id;draw();return;}
+  if(selectedNode===clicked.id){selectedNode=null;draw();return;}
+  // Check if edge exists
+  const edge=edges.find(e=>(e.from===selectedNode&&e.to===clicked.id)||(e.from===clicked.id&&e.to===selectedNode));
+  if(edge&&!playerEdges.includes(edge)&&!aiEdges.includes(edge)){
+    playerEdges.push(edge);
+    // Check if we completed a path from left to right
+    if(checkPath(playerEdges)){youRouted++;if(youRouted>=packets)endGame();}
+  }
+  selectedNode=null;updateUI();draw();
+});
+
+function checkPath(edgeSet){
+  const leftNodes=nodes.filter(n=>n.x<120).map(n=>n.id);
+  const rightNodes=nodes.filter(n=>n.x>W-120).map(n=>n.id);
+  for(const start of leftNodes){
+    const visited=new Set();const queue=[start];visited.add(start);
+    while(queue.length){
+      const cur=queue.shift();
+      if(rightNodes.includes(cur))return true;
+      edgeSet.forEach(e=>{
+        const next=e.from===cur?e.to:e.to===cur?e.from:-1;
+        if(next>=0&&!visited.has(next)){visited.add(next);queue.push(next);}
+      });
+    }
+  }
+  return false;
+}
+
+function aiTurn(){
+  if(!gameActive)return;
+  const avail=edges.filter(e=>!playerEdges.includes(e)&&!aiEdges.includes(e));
+  if(avail.length>0){
+    aiEdges.push(avail[rnd(0,avail.length-1)]);
+    if(checkPath(aiEdges))aiRouted++;
+    updateUI();draw();
+  }
+}
+
+function updateUI(){
+  document.getElementById('youRouted').textContent=youRouted;
+  document.getElementById('youProg').style.width=(youRouted/packets*100)+'%';
+  document.getElementById('aiProg').style.width=(aiRouted/packets*100)+'%';
+}
+
+function draw(){
+  ctx.fillStyle='#0f172a';ctx.fillRect(0,0,W,H);
+  // Grid
+  ctx.strokeStyle='rgba(59,130,246,0.04)';ctx.lineWidth=0.5;
+  for(let x=0;x<W;x+=30){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=30){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  // All possible edges (faint)
+  edges.forEach(e=>{
+    ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(nodes[e.from].x,nodes[e.from].y);ctx.lineTo(nodes[e.to].x,nodes[e.to].y);ctx.stroke();
+  });
+  // Player edges
+  playerEdges.forEach(e=>{
+    ctx.strokeStyle='#3b82f6';ctx.lineWidth=3;ctx.shadowColor='#3b82f6';ctx.shadowBlur=8;
+    ctx.beginPath();ctx.moveTo(nodes[e.from].x,nodes[e.from].y);ctx.lineTo(nodes[e.to].x,nodes[e.to].y);ctx.stroke();ctx.shadowBlur=0;
+  });
+  // AI edges
+  aiEdges.forEach(e=>{
+    ctx.strokeStyle='#ef4444';ctx.lineWidth=3;ctx.shadowColor='#ef4444';ctx.shadowBlur=8;
+    ctx.beginPath();ctx.moveTo(nodes[e.from].x,nodes[e.from].y);ctx.lineTo(nodes[e.to].x,nodes[e.to].y);ctx.stroke();ctx.shadowBlur=0;
+  });
+  // Nodes
+  nodes.forEach((n,i)=>{
+    const isLeft=n.x<120,isRight=n.x>W-120;
+    ctx.fillStyle=i===selectedNode?'#facc15':isLeft?'#22c55e':isRight?'#f472b6':'#94a3b8';
+    ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=i===selectedNode?16:8;
+    ctx.beginPath();ctx.arc(n.x,n.y,10,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+    if(isLeft){ctx.fillStyle='#166534';ctx.font='bold 7px sans-serif';ctx.textAlign='center';ctx.fillText('SRC',n.x,n.y+3);}
+    if(isRight){ctx.fillStyle='#9d174d';ctx.font='bold 7px sans-serif';ctx.textAlign='center';ctx.fillText('DST',n.x,n.y+3);}
+  });
+}
+
+function endGame(){
+  gameActive=false;clearInterval(timerInt);clearInterval(aiInt);
+  document.getElementById('endScreen').classList.remove('hidden');
+  const won=youRouted>aiRouted;
+  document.getElementById('endTitle').textContent=won?'🏆 Packets Delivered!':'📡 Rival Was Faster!';
+  document.getElementById('endMsg').textContent=`You: ${youRouted} | Rival: ${aiRouted}`;
+  if(window.parent!==window)window.parent.postMessage({type:'score-submit',gameId:'node-racer',score:youRouted*100+(won?500:0)},'*');
+}
+draw();
+</script></body></html>

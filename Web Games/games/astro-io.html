@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Astro.io</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}body{background:#000;font-family:'Segoe UI',sans-serif;color:#e2e8f0;height:100vh;overflow:hidden}
+canvas{display:block}
+.hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:8px 16px;pointer-events:none;font-size:0.8rem}
+.hud-left{display:flex;flex-direction:column;gap:4px}
+.energy-bar{width:120px;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden}
+.energy-fill{height:100%;background:linear-gradient(90deg,#06b6d4,#3b82f6);transition:width 0.2s;border-radius:4px}
+.lb{position:fixed;top:10px;right:10px;background:rgba(0,0,0,0.6);padding:8px 12px;border-radius:8px;font-size:0.7rem;min-width:120px;border:1px solid rgba(255,255,255,0.06)}
+.lb h4{color:#64748b;font-size:0.6rem;text-transform:uppercase;margin-bottom:4px}.lb-row{display:flex;justify-content:space-between;padding:1px 0}
+.lb-row.me{color:#06b6d4;font-weight:700}
+.radar{position:fixed;bottom:10px;right:10px;width:80px;height:80px;border-radius:50%;background:rgba(0,0,0,0.5);border:1px solid rgba(6,182,212,0.3)}
+.msg{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:10}
+.msg-box{text-align:center;background:#0a1628;padding:32px 48px;border-radius:16px;border:1px solid rgba(6,182,212,0.3)}
+.msg-box h2{font-size:1.6rem;margin-bottom:8px;background:linear-gradient(135deg,#06b6d4,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.msg-box p{color:#94a3b8;margin-bottom:16px;line-height:1.6;font-size:0.85rem}
+.msg-box button{padding:10px 24px;border:none;border-radius:12px;background:linear-gradient(135deg,#06b6d4,#3b82f6);color:white;font-size:0.9rem;cursor:pointer;font-weight:700}
+.hidden{display:none!important}
+</style></head><body>
+<canvas id="c"></canvas>
+<div class="hud"><div class="hud-left"><span>⚡ Energy</span><div class="energy-bar"><div class="energy-fill" id="energyBar" style="width:100%"></div></div><span id="scoreText">Score: 0</span></div></div>
+<div class="lb" id="leaderboard"><h4>Top Scavengers</h4></div>
+<div class="radar"><canvas id="radar" width="80" height="80"></canvas></div>
+<div class="msg" id="startScreen"><div class="msg-box"><h2>🚀 Astro.io</h2><p>WASD to move, Click to shoot.<br>Destroy asteroids for resources.<br>Upgrade and survive!</p><button onclick="startGame()">Launch</button></div></div>
+<div class="msg hidden" id="endScreen"><div class="msg-box"><h2 id="endTitle"></h2><p id="endMsg"></p><button onclick="location.reload()">Relaunch</button></div></div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const rCanvas=document.getElementById('radar'),rCtx=rCanvas.getContext('2d');
+let W,H;function resize(){W=canvas.width=innerWidth;H=canvas.height=innerHeight;}resize();window.onresize=resize;
+const rnd=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+
+let ship,asteroids=[],bullets=[],particles=[],bots=[],score=0,energy=100,keys={},mouse={x:0,y:0},gameActive=false,animId;
+const WORLD=2000;
+
+function startGame(){
+  document.getElementById('startScreen').classList.add('hidden');
+  ship={x:WORLD/2,y:WORLD/2,vx:0,vy:0,angle:0,size:12,hp:100};
+  asteroids=[];bullets=[];particles=[];bots=[];score=0;energy=100;gameActive=true;
+  for(let i=0;i<40;i++)asteroids.push({x:rnd(0,WORLD),y:rnd(0,WORLD),r:rnd(12,30),vx:(Math.random()-0.5)*0.5,vy:(Math.random()-0.5)*0.5,hp:3});
+  for(let i=0;i<5;i++)bots.push({x:rnd(0,WORLD),y:rnd(0,WORLD),vx:0,vy:0,angle:Math.random()*Math.PI*2,size:10,score:0,color:['#ef4444','#22c55e','#facc15','#a855f7','#fb923c'][i],name:['Rex','Nova','Zap','Pixel','Neon'][i]});
+  loop();
+}
+
+function loop(){if(!gameActive)return;update();draw();animId=requestAnimationFrame(loop);}
+
+function update(){
+  const spd=0.15;
+  if(keys['w'])ship.vy-=spd;if(keys['s'])ship.vy+=spd;if(keys['a'])ship.vx-=spd;if(keys['d'])ship.vx+=spd;
+  ship.vx*=0.98;ship.vy*=0.98;ship.x+=ship.vx;ship.y+=ship.vy;
+  ship.x=Math.max(0,Math.min(WORLD,ship.x));ship.y=Math.max(0,Math.min(WORLD,ship.y));
+  ship.angle=Math.atan2(mouse.y-H/2,mouse.x-W/2);
+  // Bullets
+  bullets.forEach(b=>{b.x+=b.vx;b.y+=b.vy;b.life--;});
+  bullets=bullets.filter(b=>b.life>0);
+  // Asteroid collision
+  asteroids.forEach(a=>{a.x+=a.vx;a.y+=a.vy;
+    bullets.forEach(b=>{const dx=b.x-a.x,dy=b.y-a.y;if(Math.sqrt(dx*dx+dy*dy)<a.r){a.hp--;b.life=0;
+      for(let i=0;i<3;i++)particles.push({x:a.x,y:a.y,vx:(Math.random()-0.5)*3,vy:(Math.random()-0.5)*3,life:20,color:'#facc15'});
+      if(a.hp<=0){score+=10;energy=Math.min(100,energy+5);a.x=-999;}
+    }});
+  });
+  asteroids=asteroids.filter(a=>a.hp>0&&a.x>-500);
+  // Respawn
+  if(asteroids.length<20)asteroids.push({x:rnd(0,WORLD),y:rnd(0,WORLD),r:rnd(12,30),vx:(Math.random()-0.5)*0.5,vy:(Math.random()-0.5)*0.5,hp:3});
+  // Bots
+  bots.forEach(bot=>{
+    const nearAst=asteroids.reduce((best,a)=>{const d=Math.hypot(a.x-bot.x,a.y-bot.y);return d<(best?best.d:999)?{a,d}:best;},null);
+    if(nearAst&&nearAst.d<200){bot.angle=Math.atan2(nearAst.a.y-bot.y,nearAst.a.x-bot.x);bot.vx+=Math.cos(bot.angle)*0.1;bot.vy+=Math.sin(bot.angle)*0.1;}
+    else{bot.angle+=0.02;}
+    bot.vx*=0.98;bot.vy*=0.98;bot.x+=bot.vx;bot.y+=bot.vy;
+    bot.x=Math.max(0,Math.min(WORLD,bot.x));bot.y=Math.max(0,Math.min(WORLD,bot.y));
+  });
+  // Particles
+  particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.life--;});
+  particles=particles.filter(p=>p.life>0);
+  // Energy decay
+  energy=Math.max(0,energy-0.02);
+  document.getElementById('energyBar').style.width=energy+'%';
+  document.getElementById('scoreText').textContent='Score: '+score;
+  if(energy<=0||ship.hp<=0)endGame();
+  updateLB();drawRadar();
+}
+
+function draw(){
+  ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
+  const cx=ship.x-W/2,cy=ship.y-H/2;
+  // Stars
+  ctx.fillStyle='rgba(255,255,255,0.3)';
+  for(let i=0;i<50;i++){ctx.fillRect((i*137)%WORLD-cx,(i*97)%WORLD-cy,1,1);}
+  // Asteroids
+  asteroids.forEach(a=>{const sx=a.x-cx,sy=a.y-cy;if(sx<-50||sx>W+50||sy<-50||sy>H+50)return;
+    ctx.fillStyle='#4a4a5a';ctx.shadowColor='#666';ctx.shadowBlur=4;ctx.beginPath();ctx.arc(sx,sy,a.r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;});
+  // Bots
+  bots.forEach(bot=>{const sx=bot.x-cx,sy=bot.y-cy;if(sx<-50||sx>W+50||sy<-50||sy>H+50)return;
+    ctx.save();ctx.translate(sx,sy);ctx.rotate(bot.angle);ctx.fillStyle=bot.color;ctx.shadowColor=bot.color;ctx.shadowBlur=10;
+    ctx.beginPath();ctx.moveTo(12,0);ctx.lineTo(-8,-7);ctx.lineTo(-8,7);ctx.closePath();ctx.fill();ctx.shadowBlur=0;ctx.restore();});
+  // Ship
+  ctx.save();ctx.translate(W/2,H/2);ctx.rotate(ship.angle);ctx.fillStyle='#06b6d4';ctx.shadowColor='#06b6d4';ctx.shadowBlur=15;
+  ctx.beginPath();ctx.moveTo(14,0);ctx.lineTo(-10,-8);ctx.lineTo(-6,0);ctx.lineTo(-10,8);ctx.closePath();ctx.fill();ctx.shadowBlur=0;ctx.restore();
+  // Bullets
+  ctx.fillStyle='#facc15';ctx.shadowColor='#facc15';ctx.shadowBlur=6;
+  bullets.forEach(b=>{ctx.fillRect(b.x-cx-2,b.y-cy-2,4,4);});ctx.shadowBlur=0;
+  // Particles
+  particles.forEach(p=>{ctx.fillStyle=p.color;ctx.globalAlpha=p.life/20;ctx.fillRect(p.x-cx-1,p.y-cy-1,3,3);});
+  ctx.globalAlpha=1;
+}
+
+function drawRadar(){rCtx.fillStyle='rgba(0,0,0,0.7)';rCtx.fillRect(0,0,80,80);rCtx.strokeStyle='rgba(6,182,212,0.2)';rCtx.beginPath();rCtx.arc(40,40,38,0,Math.PI*2);rCtx.stroke();
+  const s=80/WORLD;rCtx.fillStyle='#06b6d4';rCtx.fillRect(ship.x*s-1,ship.y*s-1,3,3);
+  asteroids.forEach(a=>{rCtx.fillStyle='rgba(255,255,255,0.3)';rCtx.fillRect(a.x*s,a.y*s,1,1);});
+  bots.forEach(b=>{rCtx.fillStyle=b.color;rCtx.fillRect(b.x*s-1,b.y*s-1,2,2);});}
+
+function updateLB(){const all=[{name:'You',score},{...bots.map(b=>({name:b.name,score:b.score}))}].flat().filter(Boolean);
+  bots.forEach(b=>b.score+=Math.random()<0.02?10:0);
+  const sorted=[{name:'You',score:score},...bots.map(b=>({name:b.name,score:b.score}))].sort((a,b)=>b.score-a.score);
+  document.getElementById('leaderboard').innerHTML='<h4>Top Scavengers</h4>'+sorted.map(e=>`<div class="lb-row${e.name==='You'?' me':''}">${e.name} <span>${e.score}</span></div>`).join('');}
+
+function shoot(){if(!gameActive||energy<2)return;energy-=2;
+  const speed=8;bullets.push({x:ship.x,y:ship.y,vx:Math.cos(ship.angle)*speed+ship.vx,vy:Math.sin(ship.angle)*speed+ship.vy,life:60});}
+
+function endGame(){gameActive=false;cancelAnimationFrame(animId);document.getElementById('endScreen').classList.remove('hidden');
+  document.getElementById('endTitle').textContent='💀 Ship Destroyed';document.getElementById('endMsg').textContent='Score: '+score;
+  if(window.parent!==window)window.parent.postMessage({type:'score-submit',gameId:'astro-io',score:score},'*');}
+
+document.addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;});
+document.addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
+canvas.addEventListener('mousemove',e=>{mouse.x=e.clientX;mouse.y=e.clientY;});
+canvas.addEventListener('click',shoot);
+</script></body></html>

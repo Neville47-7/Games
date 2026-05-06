@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Pong</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a1a;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:'Segoe UI',sans-serif;color:#e2e8f0;overflow:hidden}
+canvas{border:2px solid rgba(124,58,237,0.4);border-radius:8px}
+.msg{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;background:rgba(10,10,26,0.96);padding:32px 48px;border-radius:16px;border:1px solid rgba(124,58,237,0.3);z-index:10}
+.msg h2{font-size:1.8rem;margin-bottom:8px;background:linear-gradient(135deg,#7c3aed,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.msg p{color:#94a3b8;margin-bottom:16px;line-height:1.6}
+.msg button{padding:10px 28px;border:none;border-radius:24px;background:linear-gradient(135deg,#7c3aed,#06b6d4);color:#fff;font-size:1rem;cursor:pointer;font-weight:600}
+</style>
+</head>
+<body>
+<canvas id="c" width="600" height="400"></canvas>
+<div class="msg" id="startScreen"><h2>🏓 Pong</h2><p>Player 1: W/S keys<br>Player 2: Up/Down keys<br>First to 7 wins!</p><button onclick="startGame()">Play</button></div>
+<div class="msg" id="overScreen" style="display:none"><h2 id="winMsg">Player 1 Wins!</h2><p></p><button onclick="startGame()">Play Again</button></div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=canvas.width,H=canvas.height,PW=12,BALL_R=8,WIN_SCORE=7;
+const params=new URLSearchParams(window.location.search);
+const DIFF=params.get('diff')||'medium';
+const PCFG={easy:{ph:110,ballSpd:3,paddleSpd:6},medium:{ph:80,ballSpd:4,paddleSpd:5},hard:{ph:55,ballSpd:5.5,paddleSpd:5}};
+const PC=PCFG[DIFF]||PCFG.medium;
+const PH=PC.ph;
+let p1,p2,ball,score1,score2,running=false,keys={};
+
+function startGame(){
+  document.getElementById('startScreen').style.display='none';
+  document.getElementById('overScreen').style.display='none';
+  p1={x:20,y:H/2-PH/2};p2={x:W-20-PW,y:H/2-PH/2};
+  score1=0;score2=0;running=true;
+  resetBall();loop();
+}
+function resetBall(){
+  ball={x:W/2,y:H/2,dx:(Math.random()>0.5?1:-1)*PC.ballSpd,dy:(Math.random()-0.5)*PC.ballSpd,speed:PC.ballSpd};
+}
+function loop(){
+  if(!running)return;
+  update();draw();requestAnimationFrame(loop);
+}
+function update(){
+  // Paddle movement
+  if(keys['w']&&p1.y>0)p1.y-=5;
+  if(keys['s']&&p1.y<H-PH)p1.y+=5;
+  if(keys['ArrowUp']&&p2.y>0)p2.y-=5;
+  if(keys['ArrowDown']&&p2.y<H-PH)p2.y+=5;
+  // Ball
+  ball.x+=ball.dx;ball.y+=ball.dy;
+  if(ball.y-BALL_R<0||ball.y+BALL_R>H)ball.dy*=-1;
+  // Paddle collision
+  if(ball.dx<0&&ball.x-BALL_R<=p1.x+PW&&ball.y>=p1.y&&ball.y<=p1.y+PH){
+    ball.dx=Math.abs(ball.dx)*1.05;ball.dy+=(ball.y-(p1.y+PH/2))*0.1;ball.x=p1.x+PW+BALL_R;
+  }
+  if(ball.dx>0&&ball.x+BALL_R>=p2.x&&ball.y>=p2.y&&ball.y<=p2.y+PH){
+    ball.dx=-Math.abs(ball.dx)*1.05;ball.dy+=(ball.y-(p2.y+PH/2))*0.1;ball.x=p2.x-BALL_R;
+  }
+  // Score
+  if(ball.x<0){score2++;checkWin();resetBall();}
+  if(ball.x>W){score1++;checkWin();resetBall();}
+}
+function checkWin(){
+  if(score1>=WIN_SCORE||score2>=WIN_SCORE){
+    running=false;
+    document.getElementById('winMsg').textContent=(score1>=WIN_SCORE?'Player 1':'Player 2')+' Wins! 🎉';
+    document.getElementById('overScreen').style.display='block';
+  }
+}
+function draw(){
+  ctx.fillStyle='#0f0f2a';ctx.fillRect(0,0,W,H);
+  // Center line
+  ctx.setLineDash([8,8]);ctx.strokeStyle='rgba(255,255,255,0.1)';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(W/2,0);ctx.lineTo(W/2,H);ctx.stroke();ctx.setLineDash([]);
+  // Paddles
+  ctx.fillStyle='#06b6d4';ctx.shadowColor='#06b6d4';ctx.shadowBlur=15;
+  ctx.beginPath();ctx.roundRect(p1.x,p1.y,PW,PH,6);ctx.fill();
+  ctx.fillStyle='#f472b6';ctx.shadowColor='#f472b6';
+  ctx.beginPath();ctx.roundRect(p2.x,p2.y,PW,PH,6);ctx.fill();
+  ctx.shadowBlur=0;
+  // Ball
+  ctx.fillStyle='#fff';ctx.shadowColor='#fff';ctx.shadowBlur=20;
+  ctx.beginPath();ctx.arc(ball.x,ball.y,BALL_R,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+  // Score
+  ctx.font='bold 48px Segoe UI';ctx.textAlign='center';
+  ctx.fillStyle='rgba(6,182,212,0.4)';ctx.fillText(score1,W/4,60);
+  ctx.fillStyle='rgba(244,114,182,0.4)';ctx.fillText(score2,3*W/4,60);
+}
+document.addEventListener('keydown',e=>{keys[e.key]=true;if(['ArrowUp','ArrowDown'].includes(e.key))e.preventDefault();});
+document.addEventListener('keyup',e=>{keys[e.key]=false;});
+draw();
+</script>
+</body>
+</html>

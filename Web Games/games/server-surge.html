@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Server Surge</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0f172a;font-family:'Segoe UI',sans-serif;color:#e2e8f0;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+.top{display:flex;justify-content:space-between;padding:10px 16px;background:rgba(0,0,0,0.3);border-bottom:1px solid rgba(59,130,246,0.2)}
+.top h2{font-size:1rem;color:#60a5fa;font-weight:800}
+.main{flex:1;display:flex;gap:8px;padding:8px}
+.server-panel{flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.server-panel h3{text-align:center;font-size:0.75rem;text-transform:uppercase;letter-spacing:1px;padding:4px;border-radius:6px}
+.server-panel.you h3{color:#3b82f6;background:rgba(59,130,246,0.1)}
+.server-panel.ai h3{color:#ef4444;background:rgba(239,68,68,0.1)}
+.gauge{display:flex;align-items:center;gap:6px;font-size:0.75rem}
+.gauge-label{min-width:50px;color:#94a3b8;font-weight:600}
+.gauge-track{flex:1;height:14px;background:rgba(255,255,255,0.05);border-radius:4px;overflow:hidden;border:1px solid rgba(255,255,255,0.08)}
+.gauge-fill{height:100%;transition:width 0.3s;border-radius:3px}
+.gauge-val{min-width:35px;text-align:right;font-weight:700;font-size:0.8rem}
+.fill-cpu{background:linear-gradient(90deg,#3b82f6,#ef4444)}.fill-ram{background:linear-gradient(90deg,#22c55e,#facc15)}
+.fill-temp{background:linear-gradient(90deg,#06b6d4,#ef4444)}.fill-hp{background:#22c55e}
+.fill-hp.danger{background:#ef4444}
+.chart{flex:1;background:rgba(0,0,0,0.2);border-radius:8px;border:1px solid rgba(255,255,255,0.05);position:relative;overflow:hidden}
+.chart canvas{width:100%;height:100%}
+.actions{display:flex;gap:6px;flex-wrap:wrap;padding:8px;background:rgba(0,0,0,0.2);border-top:1px solid rgba(255,255,255,0.06)}
+.act-btn{padding:8px 14px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;background:rgba(255,255,255,0.03);color:#e2e8f0;font-size:0.78rem;font-weight:600;cursor:pointer;transition:all 0.2s;flex:1;text-align:center}
+.act-btn:hover{background:rgba(59,130,246,0.15);border-color:rgba(59,130,246,0.3)}
+.act-btn.attack{border-color:rgba(239,68,68,0.3)}.act-btn.attack:hover{background:rgba(239,68,68,0.15)}
+.act-btn:disabled{opacity:0.3;cursor:not-allowed}
+.log{height:60px;overflow-y:auto;font-size:0.68rem;padding:4px 8px;color:#64748b;background:rgba(0,0,0,0.2);border-radius:6px}
+.log .atk{color:#ef4444}.log .def{color:#22c55e}.log .inf{color:#60a5fa}
+.msg{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:10}
+.msg-box{text-align:center;background:#1e293b;padding:32px 48px;border-radius:16px;border:1px solid rgba(59,130,246,0.3)}
+.msg-box h2{font-size:1.6rem;margin-bottom:8px;background:linear-gradient(135deg,#3b82f6,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.msg-box p{color:#94a3b8;margin-bottom:16px;line-height:1.6;font-size:0.9rem}
+.msg-box button{padding:10px 24px;border:none;border-radius:12px;background:linear-gradient(135deg,#3b82f6,#06b6d4);color:white;font-size:0.95rem;cursor:pointer;font-weight:700}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="top"><h2>🖥️ Server Surge</h2><span style="color:#94a3b8;font-size:0.8rem" id="round">Round 1/20</span><span class="timer" id="timer" style="color:#facc15;font-weight:700"></span></div>
+<div class="main">
+  <div class="server-panel you">
+    <h3>🔵 Your Server</h3>
+    <div class="gauge"><span class="gauge-label">HP</span><div class="gauge-track"><div class="gauge-fill fill-hp" id="yHp" style="width:100%"></div></div><span class="gauge-val" id="yHpV">100</span></div>
+    <div class="gauge"><span class="gauge-label">CPU</span><div class="gauge-track"><div class="gauge-fill fill-cpu" id="yCpu" style="width:20%"></div></div><span class="gauge-val" id="yCpuV">20%</span></div>
+    <div class="gauge"><span class="gauge-label">RAM</span><div class="gauge-track"><div class="gauge-fill fill-ram" id="yRam" style="width:30%"></div></div><span class="gauge-val" id="yRamV">30%</span></div>
+    <div class="gauge"><span class="gauge-label">TEMP</span><div class="gauge-track"><div class="gauge-fill fill-temp" id="yTemp" style="width:25%"></div></div><span class="gauge-val" id="yTempV">25°</span></div>
+    <div class="chart"><canvas id="yChart"></canvas></div>
+    <div class="log" id="yLog"></div>
+  </div>
+  <div class="server-panel ai">
+    <h3>🔴 Enemy Server</h3>
+    <div class="gauge"><span class="gauge-label">HP</span><div class="gauge-track"><div class="gauge-fill fill-hp" id="aHp" style="width:100%"></div></div><span class="gauge-val" id="aHpV">100</span></div>
+    <div class="gauge"><span class="gauge-label">CPU</span><div class="gauge-track"><div class="gauge-fill fill-cpu" id="aCpu" style="width:20%"></div></div><span class="gauge-val" id="aCpuV">20%</span></div>
+    <div class="gauge"><span class="gauge-label">RAM</span><div class="gauge-track"><div class="gauge-fill fill-ram" id="aRam" style="width:30%"></div></div><span class="gauge-val" id="aRamV">30%</span></div>
+    <div class="gauge"><span class="gauge-label">TEMP</span><div class="gauge-track"><div class="gauge-fill fill-temp" id="aTemp" style="width:25%"></div></div><span class="gauge-val" id="aTempV">25°</span></div>
+    <div class="chart"><canvas id="aChart"></canvas></div>
+    <div class="log" id="aLog"></div>
+  </div>
+</div>
+<div class="actions">
+  <button class="act-btn attack" onclick="action('traffic')">⚡ Deploy Traffic</button>
+  <button class="act-btn attack" onclick="action('ddos')">💥 DDoS Blast</button>
+  <button class="act-btn attack" onclick="action('overheat')">🔥 Overheat</button>
+  <button class="act-btn" onclick="action('ram')">🧠 Upgrade RAM</button>
+  <button class="act-btn" onclick="action('cool')">❄️ Cool Down</button>
+  <button class="act-btn" onclick="action('patch')">🛡️ Patch Server</button>
+</div>
+<div class="msg" id="startScreen">
+  <div class="msg-box"><h2>🖥️ Server Surge</h2><p>Keep your server online while crashing your opponent's!<br>Attack with traffic spikes, defend with upgrades.</p><button onclick="startGame()">Launch Servers</button></div>
+</div>
+<div class="msg hidden" id="endScreen">
+  <div class="msg-box"><h2 id="endTitle"></h2><p id="endMsg"></p><button onclick="location.reload()">Reboot</button></div>
+</div>
+<script>
+let you={hp:100,cpu:20,ram:30,temp:25,history:[]},ai={hp:100,cpu:20,ram:30,temp:25,history:[]};
+let round=0,maxRounds=20,gameActive=false,roundTimer;
+
+function rnd(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+
+function startGame(){document.getElementById('startScreen').classList.add('hidden');gameActive=true;updateUI();nextRound();}
+
+function nextRound(){
+  if(!gameActive)return;round++;
+  if(round>maxRounds||you.hp<=0||ai.hp<=0){endGame();return;}
+  document.getElementById('round').textContent=`Round ${round}/${maxRounds}`;
+  // Natural drift
+  you.cpu=clamp(you.cpu+rnd(-5,8),5,100);you.temp=clamp(you.temp+rnd(-3,5),10,100);
+  ai.cpu=clamp(ai.cpu+rnd(-5,8),5,100);ai.temp=clamp(ai.temp+rnd(-3,5),10,100);
+  if(you.temp>80)you.hp=clamp(you.hp-rnd(3,8),0,100);
+  if(ai.temp>80)ai.hp=clamp(ai.hp-rnd(3,8),0,100);
+  if(you.cpu>90)you.hp=clamp(you.hp-rnd(2,5),0,100);
+  if(ai.cpu>90)ai.hp=clamp(ai.hp-rnd(2,5),0,100);
+  updateUI();
+}
+
+function action(type){
+  if(!gameActive)return;
+  switch(type){
+    case'traffic':ai.cpu=clamp(ai.cpu+rnd(15,30),0,100);logMsg('a','⚡ Traffic spike! CPU +'+20,'atk');break;
+    case'ddos':ai.hp=clamp(ai.hp-rnd(8,15),0,100);ai.ram=clamp(ai.ram+20,0,100);logMsg('a','💥 DDoS! HP damaged','atk');break;
+    case'overheat':ai.temp=clamp(ai.temp+rnd(20,35),0,100);logMsg('a','🔥 Overheat attack!','atk');break;
+    case'ram':you.ram=clamp(you.ram-20,5,100);you.hp=clamp(you.hp+5,0,100);logMsg('y','🧠 RAM upgraded, +5HP','def');break;
+    case'cool':you.temp=clamp(you.temp-rnd(15,25),10,100);logMsg('y','❄️ Cooled down!','def');break;
+    case'patch':you.hp=clamp(you.hp+rnd(5,10),0,100);you.cpu=clamp(you.cpu-10,5,100);logMsg('y','🛡️ Patched! HP restored','def');break;
+  }
+  // AI turn
+  setTimeout(()=>{
+    const r=Math.random();
+    if(r<0.3){you.cpu=clamp(you.cpu+rnd(10,25),0,100);logMsg('y','⚠ Enemy traffic spike!','atk');}
+    else if(r<0.5){you.hp=clamp(you.hp-rnd(5,12),0,100);logMsg('y','⚠ Enemy DDoS!','atk');}
+    else if(r<0.65){you.temp=clamp(you.temp+rnd(10,20),0,100);logMsg('y','⚠ Enemy overheat!','atk');}
+    else{ai.hp=clamp(ai.hp+rnd(3,8),0,100);ai.temp=clamp(ai.temp-10,10,100);logMsg('a','🛡️ Enemy defended','def');}
+    nextRound();
+  },400);
+}
+
+function logMsg(panel,text,cls){
+  const el=document.getElementById(panel==='y'?'yLog':'aLog');
+  el.innerHTML=`<div class="${cls}">${text}</div>`+el.innerHTML;
+}
+
+function updateUI(){
+  ['y','a'].forEach(p=>{
+    const s=p==='y'?you:ai;
+    document.getElementById(p+'Hp').style.width=s.hp+'%';document.getElementById(p+'HpV').textContent=s.hp;
+    document.getElementById(p+'Hp').className='gauge-fill fill-hp'+(s.hp<30?' danger':'');
+    document.getElementById(p+'Cpu').style.width=s.cpu+'%';document.getElementById(p+'CpuV').textContent=s.cpu+'%';
+    document.getElementById(p+'Ram').style.width=s.ram+'%';document.getElementById(p+'RamV').textContent=s.ram+'%';
+    document.getElementById(p+'Temp').style.width=s.temp+'%';document.getElementById(p+'TempV').textContent=s.temp+'°';
+    s.history.push(s.hp);if(s.history.length>30)s.history.shift();
+    drawChart(p+'Chart',s.history,p==='y'?'#3b82f6':'#ef4444');
+  });
+}
+
+function drawChart(id,data,color){
+  const c=document.getElementById(id),ctx=c.getContext('2d');
+  c.width=c.parentElement.clientWidth;c.height=c.parentElement.clientHeight;
+  ctx.clearRect(0,0,c.width,c.height);if(data.length<2)return;
+  ctx.strokeStyle=color;ctx.lineWidth=2;ctx.beginPath();
+  data.forEach((v,i)=>{const x=i/(data.length-1)*c.width,y=c.height-(v/100)*c.height;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+  ctx.stroke();ctx.lineTo(c.width,c.height);ctx.lineTo(0,c.height);ctx.closePath();
+  ctx.fillStyle=color.replace(')',',0.1)').replace('rgb','rgba');ctx.fill();
+}
+
+function endGame(){
+  gameActive=false;document.getElementById('endScreen').classList.remove('hidden');
+  const won=ai.hp<=0||(you.hp>0&&you.hp>ai.hp);
+  document.getElementById('endTitle').textContent=won?'🏆 Server Survived!':'💥 Server Crashed!';
+  document.getElementById('endMsg').textContent=`Your HP: ${you.hp} | Enemy HP: ${ai.hp}`;
+  if(window.parent!==window)window.parent.postMessage({type:'score-submit',gameId:'server-surge',score:you.hp*10+(won?500:0)},'*');
+}
+</script>
+</body>
+</html>

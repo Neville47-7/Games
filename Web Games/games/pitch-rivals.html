@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Pitch Rivals</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a1a;font-family:'Segoe UI',sans-serif;color:#e2e8f0;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+.top{display:flex;justify-content:space-between;align-items:center;padding:10px 20px;background:rgba(0,0,0,0.4);border-bottom:1px solid rgba(34,197,94,0.2)}
+.top h2{font-size:1.1rem;background:linear-gradient(135deg,#22c55e,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.timer{font-size:1.4rem;font-weight:800;color:#22c55e;text-shadow:0 0 10px rgba(34,197,94,0.5)}
+.phase{font-size:0.8rem;color:#94a3b8;text-transform:uppercase;letter-spacing:1px}
+.main{flex:1;display:flex;overflow:hidden}
+.team-col{flex:1;padding:12px;display:flex;flex-direction:column;gap:6px;overflow-y:auto}
+.team-col h3{font-size:0.75rem;text-transform:uppercase;letter-spacing:1px;text-align:center;padding:6px;border-radius:6px;margin-bottom:4px}
+.team-col.you h3{color:#22c55e;background:rgba(34,197,94,0.1)}
+.team-col.ai h3{color:#ef4444;background:rgba(239,68,68,0.1)}
+.pool{width:260px;background:rgba(255,255,255,0.02);border-left:1px solid rgba(255,255,255,0.06);border-right:1px solid rgba(255,255,255,0.06);padding:10px;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
+.pool h3{font-size:0.7rem;text-transform:uppercase;color:#64748b;letter-spacing:1px;text-align:center;margin-bottom:6px}
+.card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:8px 10px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:8px}
+.card:hover{background:rgba(34,197,94,0.1);border-color:rgba(34,197,94,0.3)}
+.card.picked{opacity:0.3;pointer-events:none}
+.card .pos{font-size:0.6rem;font-weight:700;padding:2px 6px;border-radius:4px;text-transform:uppercase;min-width:28px;text-align:center}
+.pos.GK{background:rgba(250,204,21,0.2);color:#facc15}
+.pos.DEF{background:rgba(96,165,250,0.2);color:#60a5fa}
+.pos.MID{background:rgba(52,211,153,0.2);color:#34d399}
+.pos.FWD{background:rgba(239,68,68,0.2);color:#ef4444}
+.card .name{flex:1;font-size:0.8rem;font-weight:600}
+.card .ovr{font-size:0.85rem;font-weight:800;color:#22c55e}
+.card .stats{display:flex;gap:4px;font-size:0.6rem;color:#64748b}
+.card .stats span{background:rgba(255,255,255,0.05);padding:1px 4px;border-radius:3px}
+.team-card{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px}
+.team-card .pos{font-size:0.65rem;font-weight:700;padding:3px 7px;border-radius:4px}
+.team-card .name{flex:1;font-weight:600;font-size:0.85rem}
+.team-card .ovr{font-weight:800;color:#22c55e;font-size:1rem}
+.empty-slot{background:rgba(255,255,255,0.02);border:2px dashed rgba(255,255,255,0.08);border-radius:10px;padding:14px;text-align:center;color:#475569;font-size:0.75rem}
+.sim-log{flex:1;background:rgba(0,0,0,0.3);border-left:1px solid rgba(255,255,255,0.06);padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;width:260px}
+.sim-log h3{font-size:0.7rem;text-transform:uppercase;color:#64748b;letter-spacing:1px;text-align:center;margin-bottom:6px}
+.log-entry{font-size:0.78rem;padding:4px 8px;border-radius:4px;line-height:1.4}
+.log-entry.goal{background:rgba(34,197,94,0.1);color:#22c55e;font-weight:600}
+.log-entry.goal-ai{background:rgba(239,68,68,0.1);color:#ef4444;font-weight:600}
+.log-entry.event{color:#94a3b8}
+.log-entry.whistle{color:#facc15;font-weight:700;text-align:center}
+.scoreboard{display:flex;justify-content:center;gap:30px;padding:10px;align-items:center}
+.scoreboard .sc{font-size:2rem;font-weight:900}.scoreboard .vs{color:#475569}
+.scoreboard .sc.you{color:#22c55e}.scoreboard .sc.ai{color:#ef4444}
+.btn{padding:12px 32px;border:none;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;transition:all 0.2s;display:block;margin:10px auto}
+.btn-go{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;box-shadow:0 0 20px rgba(34,197,94,0.3)}
+.btn-go:hover{transform:translateY(-2px);box-shadow:0 0 30px rgba(34,197,94,0.5)}
+.btn-go:disabled{opacity:0.4;cursor:not-allowed;transform:none}
+.msg{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:10}
+.msg-box{text-align:center;background:#111128;padding:36px 52px;border-radius:20px;border:1px solid rgba(34,197,94,0.3)}
+.msg-box h2{font-size:1.8rem;margin-bottom:8px;background:linear-gradient(135deg,#22c55e,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.msg-box p{color:#94a3b8;margin-bottom:16px;line-height:1.6}
+.msg-box button{padding:12px 28px;border:none;border-radius:24px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-size:1rem;cursor:pointer;font-weight:700}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="top">
+  <div><h2>⚽ Pitch Rivals</h2><div class="phase" id="phase">Draft Phase</div></div>
+  <div class="timer" id="timer">Pick 5 Players</div>
+  <div style="text-align:right"><span style="color:#64748b;font-size:0.8rem" id="pickInfo">Your Pick (0/5)</span></div>
+</div>
+<div class="main" id="mainArea">
+  <div class="team-col you"><h3>🟢 Your Squad</h3><div id="yourTeam"></div></div>
+  <div class="pool" id="pool"><h3>Available Players</h3></div>
+  <div class="team-col ai"><h3>🔴 Rival Squad</h3><div id="aiTeam"></div></div>
+</div>
+<button class="btn btn-go" id="readyBtn" disabled onclick="startMatch()">⚡ Simulate Match</button>
+
+<div class="msg" id="startScreen">
+  <div class="msg-box">
+    <h2>⚽ Pitch Rivals</h2>
+    <p>Draft a 5-a-side squad from the player pool.<br>Choose wisely — then watch the match unfold!</p>
+    <button onclick="startDraft()">Start Draft</button>
+  </div>
+</div>
+<div class="msg hidden" id="resultScreen">
+  <div class="msg-box">
+    <h2 id="resultTitle"></h2>
+    <div class="scoreboard"><span class="sc you" id="fYou">0</span><span class="vs">—</span><span class="sc ai" id="fAi">0</span></div>
+    <p id="resultMsg"></p>
+    <button onclick="location.reload()">Draft Again</button>
+  </div>
+</div>
+
+<script>
+const FIRST=['Alex','Bruno','Carlos','Dante','Erik','Fabio','Gael','Hugo','Ivan','Jamal','Kai','Leo','Marco','Niko','Omar','Pedro','Rafa','Sami','Tiago','Udo','Victor','Wes','Xavi','Yuri','Zane','Andre','Bakari','Cyrus','Diego','Elio'];
+const LAST=['Silva','Torres','Kim','Müller','Diop','Tanaka','Johnson','Rossi','Santos','Park','Gomez','Ali','Chen','Laurent','Okafor','Petrov','Bakker','Berg','Costa','Duval'];
+const POSITIONS=['GK','DEF','DEF','MID','MID','MID','FWD','FWD'];
+function rnd(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+function genPlayer(id){
+  const pos=POSITIONS[rnd(0,POSITIONS.length-1)];
+  const spd=rnd(40,95),sht=rnd(30,95),pas=rnd(35,95),def=rnd(30,95);
+  const weights={GK:{spd:0.1,sht:0.05,pas:0.15,def:0.7},DEF:{spd:0.2,sht:0.1,pas:0.2,def:0.5},MID:{spd:0.2,sht:0.2,pas:0.4,def:0.2},FWD:{spd:0.25,sht:0.45,pas:0.2,def:0.1}};
+  const w=weights[pos];
+  const ovr=Math.round(spd*w.spd+sht*w.sht+pas*w.pas+def*w.def);
+  return{id,name:FIRST[rnd(0,FIRST.length-1)]+' '+LAST[rnd(0,LAST.length-1)],pos,spd,sht,pas,def,ovr,picked:false};
+}
+
+let players=[],yourPicks=[],aiPicks=[],simInterval;
+
+function renderPool(){
+  const pool=document.getElementById('pool');
+  pool.innerHTML='<h3>Available Players</h3>'+players.map(p=>
+    `<div class="card${p.picked?' picked':''}" onclick="pickPlayer(${p.id})">
+      <span class="pos ${p.pos}">${p.pos}</span>
+      <span class="name">${p.name}</span>
+      <span class="ovr">${p.ovr}</span>
+      <div class="stats"><span>SPD ${p.spd}</span><span>SHT ${p.sht}</span><span>PAS ${p.pas}</span><span>DEF ${p.def}</span></div>
+    </div>`
+  ).join('');
+}
+
+function renderTeam(picks,elId,showStats){
+  const el=document.getElementById(elId);
+  let html='';
+  for(let i=0;i<5;i++){
+    if(picks[i]){
+      const p=picks[i];
+      html+=`<div class="team-card"><span class="pos ${p.pos}">${p.pos}</span><span class="name">${p.name}</span><span class="ovr">${p.ovr}</span></div>`;
+    }else html+='<div class="empty-slot">Empty Slot '+(i+1)+'</div>';
+  }
+  el.innerHTML=html;
+}
+
+function pickPlayer(id){
+  if(yourPicks.length>=5)return;
+  const p=players.find(x=>x.id===id);
+  if(!p||p.picked)return;
+  p.picked=true;yourPicks.push(p);
+  // AI picks
+  if(aiPicks.length<5){
+    const avail=players.filter(x=>!x.picked).sort((a,b)=>b.ovr-a.ovr);
+    const pick=avail[rnd(0,Math.min(2,avail.length-1))];
+    if(pick){pick.picked=true;aiPicks.push(pick);}
+  }
+  renderPool();renderTeam(yourPicks,'yourTeam',true);renderTeam(aiPicks,'aiTeam',false);
+  document.getElementById('pickInfo').textContent=`Your Pick (${yourPicks.length}/5)`;
+  if(yourPicks.length>=5)document.getElementById('readyBtn').disabled=false;
+}
+
+function startDraft(){
+  document.getElementById('startScreen').classList.add('hidden');
+  players=[];for(let i=0;i<20;i++)players.push(genPlayer(i));
+  players.sort((a,b)=>b.ovr-a.ovr);
+  yourPicks=[];aiPicks=[];
+  renderPool();renderTeam(yourPicks,'yourTeam');renderTeam(aiPicks,'aiTeam');
+}
+
+function teamStrength(picks){return picks.reduce((s,p)=>s+p.ovr,0)/picks.length;}
+
+function startMatch(){
+  document.getElementById('readyBtn').classList.add('hidden');
+  document.getElementById('phase').textContent='Match Simulation';
+  document.getElementById('pool').classList.add('hidden');
+  // Add sim log
+  const main=document.getElementById('mainArea');
+  const log=document.createElement('div');log.className='sim-log';log.id='simLog';
+  log.innerHTML='<h3>Match Events</h3>';
+  main.appendChild(log);
+  document.getElementById('timer').textContent='0:00';
+  simulateMatch();
+}
+
+function simulateMatch(){
+  const log=document.getElementById('simLog');
+  const yStr=teamStrength(yourPicks),aStr=teamStrength(aiPicks);
+  let yGoals=0,aGoals=0,minute=0;
+  const events=[];
+  // Generate events
+  for(let m=1;m<=90;m+=rnd(3,12)){
+    const r=Math.random();const yChance=yStr/(yStr+aStr);
+    if(r<0.15){// Goal chance
+      if(Math.random()<yChance){
+        const scorer=yourPicks.filter(p=>p.pos!=='GK')[rnd(0,3)]||yourPicks[0];
+        yGoals++;events.push({m,type:'goal',text:`⚽ ${m}' GOAL! ${scorer.name} scores! (${yGoals}-${aGoals})`});
+      }else{
+        const scorer=aiPicks.filter(p=>p.pos!=='GK')[rnd(0,3)]||aiPicks[0];
+        aGoals++;events.push({m,type:'goal-ai',text:`⚽ ${m}' GOAL! ${scorer.name} scores! (${yGoals}-${aGoals})`});
+      }
+    }else if(r<0.35){
+      const team=Math.random()<yChance?yourPicks:aiPicks;
+      const p=team[rnd(0,4)];
+      const acts=['wins a tackle','makes a great pass','dribbles past defenders','fires a shot wide','forces a corner','heads the ball clear'];
+      events.push({m,type:'event',text:`${m}' ${p.name} ${acts[rnd(0,acts.length-1)]}`});
+    }
+  }
+  events.unshift({m:0,type:'whistle',text:'🏁 KICK OFF!'});
+  events.push({m:45,type:'whistle',text:'⏱️ HALF TIME'});
+  events.push({m:90,type:'whistle',text:'🏁 FULL TIME!'});
+  events.sort((a,b)=>a.m-b.m);
+
+  let i=0;
+  simInterval=setInterval(()=>{
+    if(i>=events.length){
+      clearInterval(simInterval);
+      showResult(yGoals,aGoals);return;
+    }
+    const ev=events[i];
+    document.getElementById('timer').textContent=ev.m+"'";
+    const div=document.createElement('div');div.className='log-entry '+ev.type;div.textContent=ev.text;
+    log.appendChild(div);log.scrollTop=log.scrollHeight;
+    i++;
+  },800);
+}
+
+function showResult(y,a){
+  document.getElementById('resultScreen').classList.remove('hidden');
+  document.getElementById('fYou').textContent=y;document.getElementById('fAi').textContent=a;
+  const t=document.getElementById('resultTitle'),m=document.getElementById('resultMsg');
+  if(y>a){t.textContent='🏆 Victory!';m.textContent='Your squad dominated the pitch!';}
+  else if(a>y){t.textContent='😔 Defeat';m.textContent='The rival squad was too strong this time.';}
+  else{t.textContent='🤝 Draw!';m.textContent='An evenly matched battle!';}
+  if(window.parent!==window)window.parent.postMessage({type:'score-submit',gameId:'pitch-rivals',score:y*100+(y>a?500:0)},'*');
+}
+</script>
+</body>
+</html>

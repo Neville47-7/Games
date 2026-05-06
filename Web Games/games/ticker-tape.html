@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Ticker Tape Wars</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}body{background:#0f0f1a;font-family:'Segoe UI',sans-serif;color:#e2e8f0;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+.top{display:flex;justify-content:space-between;padding:6px 16px;background:#111;border-bottom:1px solid #222;font-size:0.8rem}
+.ticker{overflow:hidden;white-space:nowrap;font-size:0.7rem;color:#64748b;padding:2px 0;background:#0a0a12;border-bottom:1px solid #1a1a2e}
+.ticker span{display:inline-block;animation:scroll 20s linear infinite}
+@keyframes scroll{from{transform:translateX(100vw)}to{transform:translateX(-100%)}}
+.main{flex:1;display:flex;overflow:hidden}
+.chart-area{flex:1;position:relative;padding:8px}
+.chart-area canvas{width:100%;height:100%;border-radius:8px;background:#0a0a15}
+.side{width:200px;padding:8px;display:flex;flex-direction:column;gap:6px;font-size:0.75rem}
+.side h4{color:#64748b;text-transform:uppercase;font-size:0.6rem;letter-spacing:1px}
+.holding{padding:4px 0;border-bottom:1px solid #1a1a2e;display:flex;justify-content:space-between}
+.holding .gain{color:#22c55e}.holding .loss{color:#ef4444}
+.lb-entry{display:flex;justify-content:space-between;padding:2px 0;font-size:0.7rem}
+.actions{display:flex;gap:6px;padding:8px 16px;background:#111;border-top:1px solid #222}
+.buy-btn,.sell-btn{flex:1;padding:10px;border:none;border-radius:8px;font-size:1rem;font-weight:800;cursor:pointer;transition:all 0.2s}
+.buy-btn{background:#166534;color:#22c55e}.buy-btn:hover{background:#15803d}
+.sell-btn{background:#7f1d1d;color:#ef4444}.sell-btn:hover{background:#991b1b}
+.asset-tabs{display:flex;gap:4px;padding:4px 16px;background:#0a0a12}
+.asset-tab{padding:4px 10px;border-radius:4px;font-size:0.7rem;background:#1a1a2e;color:#94a3b8;cursor:pointer;font-weight:600;border:1px solid transparent}
+.asset-tab.active{border-color:#3b82f6;color:#3b82f6}
+.pnl{font-size:0.9rem;font-weight:800}.pnl.pos{color:#22c55e}.pnl.neg{color:#ef4444}
+.msg{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:10}
+.msg-box{text-align:center;background:#1a1a2e;padding:32px 48px;border-radius:16px;border:1px solid rgba(59,130,246,0.3)}
+.msg-box h2{font-size:1.6rem;margin-bottom:8px;background:linear-gradient(135deg,#22c55e,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.msg-box p{color:#94a3b8;margin-bottom:16px;line-height:1.6;font-size:0.85rem}
+.msg-box button{padding:10px 24px;border:none;border-radius:12px;background:linear-gradient(135deg,#22c55e,#3b82f6);color:white;font-size:0.9rem;cursor:pointer;font-weight:700}
+.hidden{display:none!important}
+</style></head><body>
+<div class="top"><span>💰 Cash: <b id="cash">10000</b></span><span>📊 P&L: <span class="pnl" id="pnl">$0</span></span><span>⏱ <b id="timer">60</b>s</span></div>
+<div class="ticker"><span id="tickerText"></span></div>
+<div class="asset-tabs" id="assetTabs"></div>
+<div class="main">
+  <div class="chart-area"><canvas id="chart"></canvas></div>
+  <div class="side">
+    <h4>Holdings</h4><div id="holdings"></div>
+    <h4>Leaderboard</h4><div id="leaderboard"></div>
+  </div>
+</div>
+<div class="actions"><button class="buy-btn" onclick="trade('buy')">▲ BUY</button><button class="sell-btn" onclick="trade('sell')">▼ SELL</button></div>
+<div class="msg" id="startScreen"><div class="msg-box"><h2>📈 Ticker Tape Wars</h2><p>Trade commodities! Buy low, sell high.<br>Beat the AI traders in 60 seconds!</p><button onclick="startGame()">Open Market</button></div></div>
+<div class="msg hidden" id="endScreen"><div class="msg-box"><h2 id="endTitle"></h2><p id="endMsg"></p><button onclick="location.reload()">Trade Again</button></div></div>
+<script>
+const ASSETS=[{name:'GOLD',price:1200,history:[]},{name:'OIL',price:80,history:[]},{name:'TECH',price:350,history:[]},{name:'CRYPTO',price:45000,history:[]}];
+let cash=10000,holdings={},selectedAsset=0,timeLeft=60,gameActive=false,tickInt;
+const canvas=document.getElementById('chart'),ctx=canvas.getContext('2d');
+
+function startGame(){
+  document.getElementById('startScreen').classList.add('hidden');
+  cash=10000;holdings={};ASSETS.forEach(a=>{a.history=[a.price];holdings[a.name]=0;});
+  selectedAsset=0;timeLeft=60;gameActive=true;
+  renderTabs();updateUI();
+  tickInt=setInterval(tick,1000);
+}
+
+function tick(){
+  timeLeft--;document.getElementById('timer').textContent=timeLeft;
+  ASSETS.forEach(a=>{
+    const change=a.price*(Math.random()*0.08-0.04);
+    a.price=Math.max(1,Math.round((a.price+change)*100)/100);
+    a.history.push(a.price);if(a.history.length>60)a.history.shift();
+  });
+  updateUI();drawChart();
+  if(timeLeft<=0){clearInterval(tickInt);endGame();}
+}
+
+function trade(type){
+  if(!gameActive)return;
+  const a=ASSETS[selectedAsset];
+  if(type==='buy'&&cash>=a.price){cash-=a.price;holdings[a.name]++;}
+  else if(type==='sell'&&holdings[a.name]>0){cash+=a.price;holdings[a.name]--;}
+  updateUI();
+}
+
+function renderTabs(){
+  document.getElementById('assetTabs').innerHTML=ASSETS.map((a,i)=>
+    `<div class="asset-tab${i===selectedAsset?' active':''}" onclick="selectedAsset=${i};renderTabs();drawChart();">${a.name} $${a.price}</div>`
+  ).join('');
+}
+
+function calcPnL(){
+  let total=cash;
+  ASSETS.forEach(a=>{total+=holdings[a.name]*a.price;});
+  return total-10000;
+}
+
+function updateUI(){
+  document.getElementById('cash').textContent=Math.round(cash);
+  const pnl=calcPnL();
+  document.getElementById('pnl').textContent=(pnl>=0?'+$':'−$')+Math.abs(Math.round(pnl));
+  document.getElementById('pnl').className='pnl '+(pnl>=0?'pos':'neg');
+  renderTabs();
+  document.getElementById('holdings').innerHTML=ASSETS.map(a=>
+    `<div class="holding"><span>${a.name}: ${holdings[a.name]}</span><span class="${holdings[a.name]*a.price>0?'gain':''}">$${Math.round(holdings[a.name]*a.price)}</span></div>`
+  ).join('');
+  const tickerParts=ASSETS.map(a=>{const c=a.history.length>1?a.price-a.history[a.history.length-2]:0;return`${a.name} $${a.price} ${c>=0?'▲':'▼'}${Math.abs(c).toFixed(2)}`;});
+  document.getElementById('tickerText').textContent=tickerParts.join('  •  ')+'  •  '+tickerParts.join('  •  ');
+}
+
+function drawChart(){
+  canvas.width=canvas.parentElement.clientWidth;canvas.height=canvas.parentElement.clientHeight;
+  const data=ASSETS[selectedAsset].history;if(data.length<2)return;
+  const min=Math.min(...data)*0.98,max=Math.max(...data)*1.02,range=max-min||1;
+  ctx.fillStyle='#0a0a15';ctx.fillRect(0,0,canvas.width,canvas.height);
+  // Grid
+  ctx.strokeStyle='#1a1a2e';ctx.lineWidth=0.5;
+  for(let i=0;i<5;i++){const y=i/4*canvas.height;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();}
+  // Candles
+  const w=Math.max(3,canvas.width/data.length-2);
+  data.forEach((v,i)=>{
+    if(i===0)return;
+    const x=i/(data.length-1)*canvas.width;
+    const yNow=canvas.height-(v-min)/range*canvas.height;
+    const yPrev=canvas.height-(data[i-1]-min)/range*canvas.height;
+    ctx.fillStyle=v>=data[i-1]?'#22c55e':'#ef4444';
+    ctx.fillRect(x-w/2,Math.min(yNow,yPrev),w,Math.abs(yNow-yPrev)||2);
+  });
+}
+
+function endGame(){
+  gameActive=false;const pnl=calcPnL();
+  document.getElementById('endScreen').classList.remove('hidden');
+  document.getElementById('endTitle').textContent=pnl>=0?'📈 Profit!':'📉 Loss!';
+  document.getElementById('endMsg').textContent=`Final P&L: ${pnl>=0?'+':''}$${Math.round(pnl)}`;
+  if(window.parent!==window)window.parent.postMessage({type:'score-submit',gameId:'ticker-tape',score:Math.max(0,Math.round(pnl)+10000)},'*');
+}
+drawChart();
+</script></body></html>

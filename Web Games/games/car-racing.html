@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Car Racing</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a1a;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:'Segoe UI',sans-serif;color:#e2e8f0;overflow:hidden}
+.hud{display:flex;gap:24px;margin-bottom:10px;font-size:0.95rem}
+.hud span{color:#94a3b8}.hud b{color:#ef4444}
+canvas{border:2px solid rgba(239,68,68,0.4);border-radius:8px}
+.msg{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;background:rgba(10,10,26,0.96);padding:32px 48px;border-radius:16px;border:1px solid rgba(239,68,68,0.3);z-index:10}
+.msg h2{font-size:1.8rem;margin-bottom:8px;background:linear-gradient(135deg,#ef4444,#fb923c);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.msg p{color:#94a3b8;margin-bottom:16px}
+.msg button{padding:10px 28px;border:none;border-radius:24px;background:linear-gradient(135deg,#ef4444,#fb923c);color:#fff;font-size:1rem;cursor:pointer;font-weight:600}
+</style>
+</head>
+<body>
+<div class="hud">
+  <span>Score: <b id="score">0</b></span>
+  <span>Speed: <b id="speed">0</b> km/h</span>
+  <span>Best: <b id="best">0</b></span>
+</div>
+<canvas id="c" width="400" height="500"></canvas>
+<div class="msg" id="startScreen"><h2>🏎️ Car Racing</h2><p>Arrow keys to steer and accelerate.<br>Dodge traffic, stay on the road!</p><button onclick="startGame()">Race!</button></div>
+<div class="msg" id="overScreen" style="display:none"><h2>Crash!</h2><p>Distance: <b id="finalScore">0</b></p><button onclick="startGame()">Race Again</button></div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const W=canvas.width,H=canvas.height;
+const params=new URLSearchParams(window.location.search);
+const DIFF=params.get('diff')||'medium';
+const DCFG={easy:{startSpeed:1.5,maxBase:6,spawnRate:0.015},medium:{startSpeed:2,maxBase:8,spawnRate:0.025},hard:{startSpeed:3,maxBase:10,spawnRate:0.04}};
+const DC=DCFG[DIFF]||DCFG.medium;
+let player,traffic,roadOffset,score,speed,maxSpeed,best=parseInt(localStorage.getItem('car_best'))||0;
+let running=false,keys={},animId;
+document.getElementById('best').textContent=best;
+
+const ROAD_L=80,ROAD_R=W-80,ROAD_W=ROAD_R-ROAD_L;
+const LANE_W=ROAD_W/4;
+const CAR_W=30,CAR_H=50;
+const TRAFFIC_COLORS=['#3b82f6','#22c55e','#facc15','#a855f7','#f472b6','#fb923c'];
+
+function startGame(){
+  document.getElementById('startScreen').style.display='none';
+  document.getElementById('overScreen').style.display='none';
+  player={x:W/2-CAR_W/2,y:H-80};
+  traffic=[];roadOffset=0;score=0;speed=DC.startSpeed;maxSpeed=DC.maxBase;running=true;
+  if(animId)cancelAnimationFrame(animId);
+  loop();
+}
+
+function spawnTraffic(){
+  const lane=Math.floor(Math.random()*4);
+  const x=ROAD_L+lane*LANE_W+(LANE_W-CAR_W)/2;
+  // Avoid spawning on top of existing traffic
+  if(traffic.some(t=>t.y<-20&&Math.abs(t.x-x)<CAR_W+10))return;
+  traffic.push({
+    x,y:-CAR_H-20,
+    color:TRAFFIC_COLORS[Math.floor(Math.random()*TRAFFIC_COLORS.length)],
+    speed:1+Math.random()*2
+  });
+}
+
+function loop(){
+  if(!running)return;
+  update();draw();animId=requestAnimationFrame(loop);
+}
+
+function update(){
+  // Controls
+  if(keys['ArrowLeft'])player.x-=4;
+  if(keys['ArrowRight'])player.x+=4;
+  if(keys['ArrowUp'])speed=Math.min(speed+0.05,maxSpeed);
+  if(keys['ArrowDown'])speed=Math.max(speed-0.1,1);
+  player.x=Math.max(ROAD_L+4,Math.min(ROAD_R-CAR_W-4,player.x));
+
+  roadOffset=(roadOffset+speed*2)%40;
+  score+=Math.floor(speed);
+  document.getElementById('score').textContent=score;
+  document.getElementById('speed').textContent=Math.floor(speed*25);
+
+  // Increase difficulty
+  maxSpeed=DC.maxBase+score/2000;
+
+  // Spawn
+  if(Math.random()<DC.spawnRate+speed*0.004)spawnTraffic();
+
+  // Move traffic
+  for(const t of traffic){
+    t.y+=speed*2-t.speed;
+  }
+  traffic=traffic.filter(t=>t.y<H+50);
+
+  // Collision
+  for(const t of traffic){
+    if(player.x<t.x+CAR_W&&player.x+CAR_W>t.x&&player.y<t.y+CAR_H&&player.y+CAR_H>t.y){
+      running=false;
+      if(score>best){best=score;localStorage.setItem('car_best',best);document.getElementById('best').textContent=best;}
+      document.getElementById('finalScore').textContent=score;
+      document.getElementById('overScreen').style.display='block';
+      if(window.parent!==window)window.parent.postMessage({type:'score-submit',gameId:'car-racing',score:score},'*');
+      return;
+    }
+  }
+
+  // Off road
+  if(player.x<ROAD_L||player.x+CAR_W>ROAD_R){
+    running=false;
+    if(score>best){best=score;localStorage.setItem('car_best',best);document.getElementById('best').textContent=best;}
+    document.getElementById('finalScore').textContent=score;
+    document.getElementById('overScreen').style.display='block';
+    if(window.parent!==window)window.parent.postMessage({type:'score-submit',gameId:'car-racing',score:score},'*');
+  }
+}
+
+function draw(){
+  // Background
+  ctx.fillStyle='#1a3a1a';ctx.fillRect(0,0,W,H);
+
+  // Road
+  ctx.fillStyle='#2a2a3e';ctx.fillRect(ROAD_L,0,ROAD_W,H);
+
+  // Road edges (white lines)
+  ctx.fillStyle='#fff';
+  ctx.fillRect(ROAD_L-3,0,3,H);
+  ctx.fillRect(ROAD_R,0,3,H);
+
+  // Lane dashes
+  ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=2;ctx.setLineDash([20,20]);
+  for(let i=1;i<4;i++){
+    const lx=ROAD_L+i*LANE_W;
+    ctx.beginPath();ctx.moveTo(lx,0-roadOffset);ctx.lineTo(lx,H);ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // Grass stripes
+  ctx.fillStyle='#144a14';
+  for(let y=-40+roadOffset%40;y<H;y+=40){
+    ctx.fillRect(0,y,ROAD_L-3,20);
+    ctx.fillRect(ROAD_R+3,y,W-ROAD_R,20);
+  }
+
+  // Traffic cars
+  for(const t of traffic){
+    drawCar(t.x,t.y,CAR_W,CAR_H,t.color,false);
+  }
+
+  // Player car
+  drawCar(player.x,player.y,CAR_W,CAR_H,'#ef4444',true);
+}
+
+function drawCar(x,y,w,h,color,isPlayer){
+  ctx.save();
+  // Body
+  ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=isPlayer?20:8;
+  ctx.beginPath();ctx.roundRect(x,y,w,h,6);ctx.fill();
+  // Windshield
+  ctx.fillStyle=isPlayer?'rgba(255,255,255,0.3)':'rgba(0,0,0,0.3)';
+  ctx.fillRect(x+4,y+(isPlayer?6:h-18),w-8,12);
+  // Wheels
+  ctx.fillStyle='#1a1a2e';
+  ctx.fillRect(x-3,y+6,5,10);ctx.fillRect(x+w-2,y+6,5,10);
+  ctx.fillRect(x-3,y+h-16,5,10);ctx.fillRect(x+w-2,y+h-16,5,10);
+  // Taillights / headlights
+  if(isPlayer){
+    ctx.fillStyle='#facc15';ctx.shadowColor='#facc15';ctx.shadowBlur=6;
+    ctx.fillRect(x+3,y,6,3);ctx.fillRect(x+w-9,y,6,3);
+  }else{
+    ctx.fillStyle='#ef4444';ctx.shadowColor='#ef4444';ctx.shadowBlur=6;
+    ctx.fillRect(x+3,y+h-3,6,3);ctx.fillRect(x+w-9,y+h-3,6,3);
+  }
+  ctx.shadowBlur=0;ctx.restore();
+}
+
+document.addEventListener('keydown',e=>{
+  keys[e.key]=true;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key))e.preventDefault();
+});
+document.addEventListener('keyup',e=>{keys[e.key]=false;});
+</script>
+</body>
+</html>

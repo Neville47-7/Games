@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Terminal Tactics</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0f0a;font-family:'Courier New',monospace;color:#00ff41;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+.top-bar{display:flex;justify-content:space-between;padding:8px 16px;background:rgba(0,255,65,0.03);border-bottom:1px solid rgba(0,255,65,0.15)}
+.top-bar h2{font-size:1rem;color:#00ff41;text-shadow:0 0 10px rgba(0,255,65,0.5)}
+.hp-bar{display:flex;align-items:center;gap:8px;font-size:0.75rem}
+.hp-track{width:140px;height:10px;background:rgba(0,255,65,0.1);border:1px solid rgba(0,255,65,0.2);border-radius:2px}
+.hp-fill{height:100%;border-radius:1px;transition:width 0.4s}
+.hp-fill.you{background:#00ff41;box-shadow:0 0 8px rgba(0,255,65,0.5)}
+.hp-fill.ai{background:#ff3333;box-shadow:0 0 8px rgba(255,51,51,0.5)}
+.main{flex:1;display:flex;overflow:hidden}
+.net-map{flex:1;display:flex;align-items:center;justify-content:center;position:relative}
+.net-map canvas{border:1px solid rgba(0,255,65,0.1);border-radius:4px}
+.sidebar{width:240px;padding:10px;border-left:1px solid rgba(0,255,65,0.1);display:flex;flex-direction:column;gap:8px;font-size:0.72rem;overflow-y:auto}
+.sidebar h4{color:rgba(0,255,65,0.5);text-transform:uppercase;letter-spacing:1px;font-size:0.6rem}
+.status-item{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(0,255,65,0.05)}
+.status-item .val{color:#00ff41}
+.status-item .val.danger{color:#ff3333}
+.status-item .val.warn{color:#ffaa00}
+.cmd-area{border-top:1px solid rgba(0,255,65,0.15);background:rgba(0,0,0,0.5)}
+.cmd-output{height:100px;padding:8px 12px;overflow-y:auto;font-size:0.75rem;color:rgba(0,255,65,0.7);line-height:1.5}
+.cmd-output .err{color:#ff3333}.cmd-output .success{color:#00ff41}.cmd-output .info{color:#00aaff}.cmd-output .warn{color:#ffaa00}
+.cmd-input-row{display:flex;align-items:center;padding:4px 12px;border-top:1px solid rgba(0,255,65,0.1)}
+.cmd-input-row span{color:#00ff41;margin-right:8px;font-weight:700}
+.cmd-input{flex:1;background:transparent;border:none;color:#00ff41;font-family:'Courier New',monospace;font-size:0.85rem;outline:none;caret-color:#00ff41}
+.msg{position:fixed;inset:0;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;z-index:10}
+.msg-box{text-align:center;background:#0a1a0a;padding:36px 52px;border-radius:4px;border:1px solid rgba(0,255,65,0.3)}
+.msg-box h2{font-size:1.5rem;color:#00ff41;margin-bottom:8px;text-shadow:0 0 20px rgba(0,255,65,0.5)}
+.msg-box p{color:rgba(0,255,65,0.6);margin-bottom:16px;line-height:1.6;font-size:0.85rem}
+.msg-box button{padding:10px 28px;border:1px solid #00ff41;border-radius:2px;background:rgba(0,255,65,0.1);color:#00ff41;font-family:'Courier New',monospace;font-size:0.9rem;cursor:pointer;font-weight:700}
+.msg-box button:hover{background:rgba(0,255,65,0.2)}
+.hidden{display:none!important}
+.blink{animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <div class="hp-bar">YOUR NODE <div class="hp-track"><div class="hp-fill you" id="youHp" style="width:100%"></div></div> <span id="youHpTxt">100%</span></div>
+  <h2>⌨️ Terminal Tactics</h2>
+  <div class="hp-bar"><span id="aiHpTxt">100%</span> <div class="hp-track"><div class="hp-fill ai" id="aiHp" style="width:100%"></div></div> ENEMY NODE</div>
+</div>
+<div class="main">
+  <div class="net-map"><canvas id="netCanvas" width="500" height="340"></canvas></div>
+  <div class="sidebar">
+    <h4>System Status</h4>
+    <div class="status-item"><span>Firewall</span><span class="val" id="sFirewall">ACTIVE</span></div>
+    <div class="status-item"><span>Encryption</span><span class="val" id="sEncrypt">OFF</span></div>
+    <div class="status-item"><span>Ports Open</span><span class="val" id="sPorts">5</span></div>
+    <div class="status-item"><span>Packets Sent</span><span class="val" id="sPackets">0</span></div>
+    <h4>Commands</h4>
+    <div style="color:rgba(0,255,65,0.5);line-height:1.8;font-size:0.65rem">
+      <b style="color:#00ff41">scan</b> — Scan enemy ports<br>
+      <b style="color:#00ff41">exploit</b> — Attack open port<br>
+      <b style="color:#00ff41">ddos</b> — Heavy network attack<br>
+      <b style="color:#00ff41">firewall</b> — Toggle firewall<br>
+      <b style="color:#00ff41">encrypt</b> — Encrypt your data<br>
+      <b style="color:#00ff41">patch</b> — Patch vulnerabilities<br>
+      <b style="color:#00ff41">nmap</b> — Deep scan<br>
+      <b style="color:#00ff41">help</b> — Show all commands
+    </div>
+    <h4>Enemy Intel</h4>
+    <div class="status-item"><span>Scanned</span><span class="val" id="eScanned">NO</span></div>
+    <div class="status-item"><span>Vuln Found</span><span class="val" id="eVuln">?</span></div>
+  </div>
+</div>
+<div class="cmd-area">
+  <div class="cmd-output" id="cmdOutput"></div>
+  <div class="cmd-input-row"><span>root@player:~$</span><input class="cmd-input" id="cmdInput" placeholder="type command..." autofocus></div>
+</div>
+<div class="msg" id="startScreen">
+  <div class="msg-box">
+    <h2>⌨️ Terminal Tactics</h2>
+    <p>Hack the enemy node while defending yours.<br>Type commands to attack and defend!<br><br>Try: <b>scan</b>, <b>exploit</b>, <b>ddos</b>, <b>firewall</b>, <b>encrypt</b>, <b>patch</b></p>
+    <button onclick="startGame()">INITIALIZE</button>
+  </div>
+</div>
+<div class="msg hidden" id="endScreen">
+  <div class="msg-box"><h2 id="endTitle"></h2><p id="endMsg"></p><button onclick="location.reload()">REBOOT</button></div>
+</div>
+<script>
+const canvas=document.getElementById('netCanvas'),ctx=canvas.getContext('2d');
+let youHP=100,aiHP=100,firewall=true,encrypted=false,scanned=false,vulns=0,packets=0,portsOpen=5;
+let gameOver=false,aiTimer,turnCount=0;
+
+function log(text,cls='info'){
+  const out=document.getElementById('cmdOutput');
+  const d=document.createElement('div');d.className=cls;d.textContent='> '+text;
+  out.appendChild(d);out.scrollTop=out.scrollHeight;
+}
+
+function updateUI(){
+  document.getElementById('youHp').style.width=youHP+'%';
+  document.getElementById('youHpTxt').textContent=youHP+'%';
+  document.getElementById('aiHp').style.width=aiHP+'%';
+  document.getElementById('aiHpTxt').textContent=aiHP+'%';
+  document.getElementById('sFirewall').textContent=firewall?'ACTIVE':'DOWN';
+  document.getElementById('sFirewall').className='val'+(firewall?'':' danger');
+  document.getElementById('sEncrypt').textContent=encrypted?'ON':'OFF';
+  document.getElementById('sEncrypt').className='val'+(encrypted?'':' warn');
+  document.getElementById('sPorts').textContent=portsOpen;
+  document.getElementById('sPackets').textContent=packets;
+  document.getElementById('eScanned').textContent=scanned?'YES':'NO';
+  document.getElementById('eVuln').textContent=scanned?vulns:'?';
+  drawNetwork();
+  if(youHP<=0){endGame(false);}
+  if(aiHP<=0){endGame(true);}
+}
+
+function processCmd(cmd){
+  if(gameOver)return;
+  cmd=cmd.trim().toLowerCase();
+  if(!cmd)return;
+  packets++;turnCount++;
+  switch(cmd){
+    case'scan':scanned=true;vulns=Math.floor(Math.random()*4)+1;log(`Scanning enemy... ${vulns} vulnerabilities found!`,'success');break;
+    case'nmap':scanned=true;vulns=Math.floor(Math.random()*5)+2;log(`Deep scan complete. ${vulns} open ports, ${vulns} potential exploits detected.`,'success');break;
+    case'exploit':
+      if(!scanned){log('ERROR: Run "scan" first to find vulnerabilities.','err');return;}
+      if(vulns<=0){log('No vulnerabilities to exploit. Scan again.','warn');return;}
+      const dmg=Math.floor(Math.random()*15)+8;
+      aiHP=Math.max(0,aiHP-dmg);vulns--;
+      log(`Exploit deployed! Dealt ${dmg} damage. Enemy at ${aiHP}%.`,'success');break;
+    case'ddos':
+      const dd=Math.floor(Math.random()*10)+5;
+      aiHP=Math.max(0,aiHP-dd);
+      log(`DDoS flood sent! Dealt ${dd} damage. Enemy at ${aiHP}%.`,'success');break;
+    case'firewall':
+      firewall=!firewall;log(`Firewall ${firewall?'ACTIVATED':'DEACTIVATED'}.`,firewall?'success':'warn');break;
+    case'encrypt':
+      encrypted=!encrypted;log(`Encryption ${encrypted?'enabled':'disabled'}.`,encrypted?'success':'warn');break;
+    case'patch':
+      const heal=Math.floor(Math.random()*10)+5;
+      youHP=Math.min(100,youHP+heal);portsOpen=Math.max(1,portsOpen-1);
+      log(`Patched! Restored ${heal}HP. ${portsOpen} ports remaining.`,'success');break;
+    case'help':
+      log('Commands: scan, nmap, exploit, ddos, firewall, encrypt, patch','info');break;
+    default:log(`Command not found: ${cmd}`,'err');return;
+  }
+  updateUI();
+  setTimeout(aiTurn,800);
+}
+
+function aiTurn(){
+  if(gameOver)return;
+  const r=Math.random();
+  if(r<0.35){
+    let dmg=Math.floor(Math.random()*12)+4;
+    if(firewall)dmg=Math.floor(dmg*0.4);
+    if(encrypted)dmg=Math.floor(dmg*0.6);
+    youHP=Math.max(0,youHP-dmg);
+    log(`⚠ Enemy exploit! ${firewall?'Firewall blocked some. ':''}Took ${dmg} damage.`,'warn');
+  }else if(r<0.55){
+    let dmg=Math.floor(Math.random()*8)+3;
+    if(firewall)dmg=Math.floor(dmg*0.5);
+    youHP=Math.max(0,youHP-dmg);
+    log(`⚠ Enemy DDoS attack! Took ${dmg} damage.`,'warn');
+  }else if(r<0.7){
+    aiHP=Math.min(100,aiHP+Math.floor(Math.random()*8)+3);
+    log('⚠ Enemy patched their system.','warn');
+  }else{
+    log('Enemy is scanning your network...','info');
+  }
+  updateUI();
+}
+
+function drawNetwork(){
+  ctx.fillStyle='#0a0f0a';ctx.fillRect(0,0,500,340);
+  // Grid
+  ctx.strokeStyle='rgba(0,255,65,0.03)';ctx.lineWidth=0.5;
+  for(let x=0;x<500;x+=20){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,340);ctx.stroke();}
+  for(let y=0;y<340;y+=20){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(500,y);ctx.stroke();}
+  // Nodes
+  const nodes=[
+    {x:80,y:170,label:'YOU',color:youHP>30?'#00ff41':'#ff3333',hp:youHP},
+    {x:420,y:170,label:'ENEMY',color:aiHP>30?'#ff3333':'#ffaa00',hp:aiHP},
+    {x:250,y:80,label:'ROUTER',color:'#00aaff',hp:100},
+    {x:250,y:260,label:'DNS',color:'#ffaa00',hp:100},
+    {x:170,y:120,label:'FW',color:firewall?'#00ff41':'#333',hp:firewall?100:0},
+  ];
+  // Connections
+  ctx.strokeStyle='rgba(0,255,65,0.15)';ctx.lineWidth=1;
+  [[0,2],[0,3],[0,4],[2,1],[3,1],[4,2]].forEach(([a,b])=>{
+    ctx.beginPath();ctx.moveTo(nodes[a].x,nodes[a].y);ctx.lineTo(nodes[b].x,nodes[b].y);ctx.stroke();
+    // Packet animation
+    if(Math.random()<0.3){
+      const t=Math.random();
+      const px=nodes[a].x+(nodes[b].x-nodes[a].x)*t;
+      const py=nodes[a].y+(nodes[b].y-nodes[a].y)*t;
+      ctx.fillStyle='rgba(0,255,65,0.6)';ctx.fillRect(px-2,py-2,4,4);
+    }
+  });
+  // Draw nodes
+  nodes.forEach(n=>{
+    ctx.fillStyle=n.color;ctx.shadowColor=n.color;ctx.shadowBlur=15;
+    ctx.beginPath();ctx.arc(n.x,n.y,14,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;ctx.fillStyle='#000';ctx.font='bold 7px Courier New';ctx.textAlign='center';
+    ctx.fillText(n.label,n.x,n.y+3);
+    ctx.fillStyle='rgba(0,255,65,0.5)';ctx.font='9px Courier New';
+    ctx.fillText(n.hp+'%',n.x,n.y+24);
+  });
+}
+
+function startGame(){
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('cmdInput').focus();
+  log('System initialized. Type "help" for commands.','success');
+  log('Objective: Reduce enemy node to 0% HP.','info');
+  updateUI();
+}
+
+function endGame(won){
+  gameOver=true;
+  document.getElementById('endScreen').classList.remove('hidden');
+  document.getElementById('endTitle').textContent=won?'ACCESS GRANTED':'SYSTEM COMPROMISED';
+  document.getElementById('endMsg').textContent=won?'Enemy node destroyed in '+turnCount+' turns!':'Your node was breached. Try again.';
+  if(window.parent!==window)window.parent.postMessage({type:'score-submit',gameId:'terminal-tactics',score:won?Math.max(0,youHP)*10+500:youHP*5},'*');
+}
+
+document.getElementById('cmdInput').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){processCmd(e.target.value);e.target.value='';}
+});
+drawNetwork();
+</script>
+</body>
+</html>

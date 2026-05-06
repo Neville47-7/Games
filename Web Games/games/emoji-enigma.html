@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Emoji Enigma</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}body{background:#1a1025;font-family:'Segoe UI',sans-serif;color:#e2e8f0;height:100vh;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.bg{position:fixed;inset:0;background:radial-gradient(circle at 30% 50%,rgba(168,85,247,0.1),transparent 50%),radial-gradient(circle at 70% 50%,rgba(236,72,153,0.1),transparent 50%);pointer-events:none}
+.arena{width:600px;max-width:95vw;display:flex;flex-direction:column;align-items:center;gap:16px;position:relative;z-index:1}
+.top-row{display:flex;width:100%;justify-content:space-between;font-size:0.85rem;color:#94a3b8}
+.top-row b{color:#a855f7}
+.emoji-box{background:rgba(255,255,255,0.04);border:2px solid rgba(168,85,247,0.2);border-radius:20px;padding:28px;width:100%;text-align:center;min-height:100px;display:flex;align-items:center;justify-content:center}
+.emoji-text{font-size:3rem;letter-spacing:8px;line-height:1.4}
+.category{font-size:0.75rem;color:#a78bfa;text-transform:uppercase;letter-spacing:2px;font-weight:600}
+.input-row{display:flex;gap:8px;width:100%}
+.guess-input{flex:1;padding:14px 18px;border-radius:12px;background:rgba(255,255,255,0.05);border:2px solid rgba(168,85,247,0.2);color:#e2e8f0;font-size:1.1rem;outline:none;font-family:'Segoe UI',sans-serif}
+.guess-input:focus{border-color:#a855f7;box-shadow:0 0 20px rgba(168,85,247,0.15)}
+.submit-btn{padding:14px 24px;border:none;border-radius:12px;background:linear-gradient(135deg,#a855f7,#ec4899);color:white;font-size:1rem;font-weight:700;cursor:pointer}
+.feedback{font-size:1.2rem;min-height:36px;font-weight:700;text-align:center}
+.feedback.correct{color:#22c55e}.feedback.wrong{color:#ef4444}
+.lb{width:100%;max-height:120px;overflow-y:auto;font-size:0.8rem}
+.lb-entry{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04)}
+.skip-btn{background:none;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 14px;color:#94a3b8;font-size:0.75rem;cursor:pointer}
+.msg{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:10}
+.msg-box{text-align:center;background:#1a1025;padding:32px 48px;border-radius:20px;border:1px solid rgba(168,85,247,0.3)}
+.msg-box h2{font-size:1.8rem;margin-bottom:8px;background:linear-gradient(135deg,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.msg-box p{color:#94a3b8;margin-bottom:16px;line-height:1.6;font-size:0.9rem}
+.msg-box button{padding:12px 28px;border:none;border-radius:16px;background:linear-gradient(135deg,#a855f7,#ec4899);color:white;font-size:1rem;cursor:pointer;font-weight:700}
+.hidden{display:none!important}
+</style></head><body>
+<div class="bg"></div>
+<div class="arena">
+  <div class="top-row"><span>🏆 Score: <b id="score">0</b></span><span>Round: <b id="round">1</b>/15</span><span>⏱ <b id="timer">15</b>s</span><button class="skip-btn" onclick="skipPuzzle()">Skip →</button></div>
+  <div class="category" id="category">Movies</div>
+  <div class="emoji-box"><div class="emoji-text" id="emojiText">🦁👑🌅</div></div>
+  <div class="feedback" id="feedback"></div>
+  <div class="input-row"><input class="guess-input" id="guessInput" placeholder="Type your answer..." autofocus><button class="submit-btn" onclick="submitGuess()">Guess!</button></div>
+</div>
+<div class="msg" id="startScreen"><div class="msg-box"><h2>🔮 Emoji Enigma</h2><p>Decode emoji sequences into movies, songs, or phrases!<br>Type fast — you only have 15 seconds per puzzle!</p><button onclick="startGame()">Decode!</button></div></div>
+<div class="msg hidden" id="endScreen"><div class="msg-box"><h2 id="endTitle"></h2><p id="endMsg"></p><button onclick="startGame()">Play Again</button></div></div>
+<script>
+const PUZZLES=[
+  {emoji:'🦁👑🌅',answer:'the lion king',cat:'Movies'},
+  {emoji:'⭐🔫💫',answer:'star wars',cat:'Movies'},
+  {emoji:'🧊❄️👸🎵',answer:'frozen',cat:'Movies'},
+  {emoji:'🕷️🧑',answer:'spider man',cat:'Movies'},
+  {emoji:'🏴‍☠️🚢💀',answer:'pirates of the caribbean',cat:'Movies'},
+  {emoji:'👻🔫👨‍👨‍👦',answer:'ghostbusters',cat:'Movies'},
+  {emoji:'🐠🔍',answer:'finding nemo',cat:'Movies'},
+  {emoji:'🦇🧑‍💼🌃',answer:'batman',cat:'Movies'},
+  {emoji:'💍👁️🌋',answer:'lord of the rings',cat:'Movies'},
+  {emoji:'🎸🎤🤘🔥',answer:'rock and roll',cat:'Phrases'},
+  {emoji:'💔😢🎵🎹',answer:'sad song',cat:'Music'},
+  {emoji:'🏠❤️🏠',answer:'home sweet home',cat:'Phrases'},
+  {emoji:'⏰💣💥',answer:'time bomb',cat:'Phrases'},
+  {emoji:'🌧️🐱🐕',answer:'raining cats and dogs',cat:'Phrases'},
+  {emoji:'🎂🎉🎈🕯️',answer:'birthday party',cat:'Phrases'},
+  {emoji:'🧠💪📚',answer:'knowledge is power',cat:'Phrases'},
+  {emoji:'🌍🔥🌡️',answer:'global warming',cat:'Science'},
+  {emoji:'🚀🌙👨‍🚀',answer:'moon landing',cat:'Science'},
+  {emoji:'⚡🧙‍♂️👓',answer:'harry potter',cat:'Movies'},
+  {emoji:'🦖🏝️🔬',answer:'jurassic park',cat:'Movies'},
+];
+
+let score=0,round=0,maxRounds=15,timeLeft=15,timer,gameActive=false,shuffled=[];
+
+function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
+
+function startGame(){
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('endScreen').classList.add('hidden');
+  score=0;round=0;shuffled=shuffle(PUZZLES);gameActive=true;nextPuzzle();
+}
+
+function nextPuzzle(){
+  round++;if(round>maxRounds){endGame();return;}
+  timeLeft=15;document.getElementById('round').textContent=round;
+  const p=shuffled[(round-1)%shuffled.length];
+  document.getElementById('emojiText').textContent=p.emoji;
+  document.getElementById('category').textContent=p.cat;
+  document.getElementById('feedback').textContent='';document.getElementById('feedback').className='feedback';
+  document.getElementById('guessInput').value='';document.getElementById('guessInput').focus();
+  clearInterval(timer);
+  timer=setInterval(()=>{timeLeft--;document.getElementById('timer').textContent=timeLeft;if(timeLeft<=0){clearInterval(timer);showAnswer(false);}},1000);
+}
+
+function submitGuess(){
+  if(!gameActive)return;
+  const guess=document.getElementById('guessInput').value.trim().toLowerCase();
+  const p=shuffled[(round-1)%shuffled.length];
+  if(guess===p.answer||guess===p.answer.replace(/ /g,'')||p.answer.includes(guess)&&guess.length>3){
+    clearInterval(timer);score+=timeLeft*10+50;
+    document.getElementById('score').textContent=score;
+    document.getElementById('feedback').textContent='✅ Correct! +'+((timeLeft*10+50));
+    document.getElementById('feedback').className='feedback correct';
+    setTimeout(nextPuzzle,1000);
+  }else{
+    document.getElementById('feedback').textContent='❌ Try again!';
+    document.getElementById('feedback').className='feedback wrong';
+    document.getElementById('guessInput').value='';
+  }
+}
+
+function skipPuzzle(){clearInterval(timer);showAnswer(true);}
+
+function showAnswer(skipped){
+  const p=shuffled[(round-1)%shuffled.length];
+  document.getElementById('feedback').textContent=(skipped?'⏩ Skipped':'⏱ Time up!')+' — Answer: '+p.answer;
+  document.getElementById('feedback').className='feedback wrong';
+  setTimeout(nextPuzzle,1500);
+}
+
+function endGame(){
+  gameActive=false;document.getElementById('endScreen').classList.remove('hidden');
+  document.getElementById('endTitle').textContent=score>500?'🧠 Cipher Master!':'🔮 Keep Decoding!';
+  document.getElementById('endMsg').textContent=`Final Score: ${score} points`;
+  if(window.parent!==window)window.parent.postMessage({type:'score-submit',gameId:'emoji-enigma',score:score},'*');
+}
+
+document.getElementById('guessInput').addEventListener('keydown',e=>{if(e.key==='Enter')submitGuess();});
+</script></body></html>

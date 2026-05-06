@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Syntax Strike</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}body{background:#1e1e2e;font-family:'Courier New',monospace;color:#cdd6f4;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+.top{display:flex;justify-content:space-between;padding:8px 16px;background:#181825;border-bottom:1px solid #313244;font-size:0.8rem}
+.main{flex:1;display:flex;overflow:hidden}
+.editor{flex:1;padding:12px;background:#1e1e2e;overflow-y:auto;position:relative}
+.editor .line{display:flex;font-size:0.85rem;line-height:1.8}.editor .ln{min-width:30px;color:#585b70;text-align:right;padding-right:8px;user-select:none}
+.editor .code{flex:1;white-space:pre}.kw{color:#cba6f7}.fn{color:#89b4fa}.str{color:#a6e3a1}.cm{color:#585b70}.num{color:#fab387}.err{background:rgba(243,139,168,0.15);text-decoration:wavy underline #f38ba8}
+.sabotage-panel{width:220px;background:#181825;border-left:1px solid #313244;padding:10px;display:flex;flex-direction:column;gap:6px;overflow-y:auto}
+.sabotage-panel h4{font-size:0.65rem;text-transform:uppercase;color:#585b70;letter-spacing:1px}
+.sab-card{padding:8px;border:1px solid #313244;border-radius:6px;background:#1e1e2e;cursor:pointer;transition:all 0.2s;font-size:0.75rem}
+.sab-card:hover{border-color:#f38ba8;background:rgba(243,139,168,0.05)}.sab-card .sab-name{font-weight:700;color:#f38ba8;margin-bottom:2px}
+.sab-card .sab-desc{color:#585b70;font-size:0.65rem}
+.sab-card:disabled,.sab-card.used{opacity:0.3;pointer-events:none}
+.output{height:80px;background:#11111b;border-top:1px solid #313244;padding:8px 12px;font-size:0.75rem;overflow-y:auto}
+.output .ok{color:#a6e3a1}.output .fail{color:#f38ba8}
+.run-btn{padding:8px 20px;background:#89b4fa;color:#1e1e2e;border:none;border-radius:4px;font-weight:700;cursor:pointer;font-family:'Courier New',monospace}
+.phase{color:#f9e2af;font-weight:700}
+.msg{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:10}
+.msg-box{text-align:center;background:#1e1e2e;padding:32px 48px;border-radius:12px;border:1px solid #313244}
+.msg-box h2{font-size:1.5rem;margin-bottom:8px;color:#89b4fa}.msg-box p{color:#a6adc8;margin-bottom:16px;line-height:1.6;font-size:0.85rem}
+.msg-box button{padding:10px 24px;border:none;border-radius:8px;background:#89b4fa;color:#1e1e2e;font-size:0.9rem;cursor:pointer;font-weight:700;font-family:'Courier New',monospace}
+.hidden{display:none!important}
+</style></head><body>
+<div class="top"><span>💻 Syntax Strike</span><span class="phase" id="phase">Round 1 — You: Coder</span><span>Score: <b id="score">0</b></span><span id="timer">⏱ 30s</span></div>
+<div class="main">
+  <div class="editor" id="editor"></div>
+  <div class="sabotage-panel" id="sabPanel"><h4>Sabotage Cards</h4></div>
+</div>
+<div class="output" id="output">Console output...</div>
+<div style="padding:6px 12px;background:#181825;border-top:1px solid #313244;display:flex;gap:8px;justify-content:flex-end">
+  <button class="run-btn" id="runBtn" onclick="runCode()">▶ RUN CODE</button>
+</div>
+<div class="msg" id="startScreen"><div class="msg-box"><h2>💻 Syntax Strike</h2><p>As the Coder: fix the buggy code before time runs out!<br>As the Saboteur: inject bugs to break the code!<br>Roles swap each round.</p><button onclick="startGame()">Compile</button></div></div>
+<div class="msg hidden" id="endScreen"><div class="msg-box"><h2 id="endTitle"></h2><p id="endMsg"></p><button onclick="location.reload()">Recompile</button></div></div>
+<script>
+const CHALLENGES=[
+  {code:['def greet(name):','    return "Hello, " + name','','result = greet("World")','print(result)'],answer:'Hello, World',bugs:['synx','logic','typo']},
+  {code:['def add(a, b):','    return a + b','','x = add(5, 3)','print(x)'],answer:'8',bugs:['synx','swap','remove']},
+  {code:['nums = [1, 2, 3, 4, 5]','total = 0','for n in nums:','    total += n','print(total)'],answer:'15',bugs:['indent','off','inject']},
+  {code:['def factorial(n):','    if n <= 1:','        return 1','    return n * factorial(n-1)','print(factorial(5))'],answer:'120',bugs:['logic','infinite','typo']},
+];
+const SABOTAGES=[
+  {name:'Syntax Bomb',desc:'Add a syntax error',action:c=>{const i=Math.floor(Math.random()*c.length);c[i]=c[i].replace('(','[');return c;}},
+  {name:'Logic Flip',desc:'Reverse a condition',action:c=>{const i=c.findIndex(l=>l.includes('<='));if(i>=0)c[i]=c[i].replace('<=','>=');return c;}},
+  {name:'Typo Inject',desc:'Misspell a keyword',action:c=>{const i=c.findIndex(l=>l.includes('return'));if(i>=0)c[i]=c[i].replace('return','retrun');return c;}},
+  {name:'Delete Line',desc:'Remove a random line',action:c=>{if(c.length>2)c.splice(1+Math.floor(Math.random()*(c.length-2)),1);return c;}},
+  {name:'Indent Chaos',desc:'Break indentation',action:c=>{const i=c.findIndex(l=>l.startsWith('    '));if(i>=0)c[i]=c[i].trimStart();return c;}},
+];
+let score=0,round=0,maxRounds=6,currentCode=[],currentAnswer='',isCoder=true,timeLeft=30,timer,bugsApplied=0,gameActive=false;
+
+function startGame(){document.getElementById('startScreen').classList.add('hidden');score=0;round=0;gameActive=true;nextRound();}
+
+function nextRound(){
+  round++;if(round>maxRounds){endGame();return;}
+  isCoder=round%2===1;timeLeft=30;bugsApplied=0;
+  const ch=CHALLENGES[(round-1)%CHALLENGES.length];
+  currentCode=[...ch.code];currentAnswer=ch.answer;
+  document.getElementById('phase').textContent=`Round ${round} — You: ${isCoder?'Coder 🔧':'Saboteur 💣'}`;
+  if(!isCoder){// AI applies bugs first
+    const numBugs=Math.floor(Math.random()*2)+1;
+    for(let i=0;i<numBugs;i++){const s=SABOTAGES[Math.floor(Math.random()*SABOTAGES.length)];currentCode=s.action([...currentCode]);}
+  }
+  renderEditor();renderSabotagePanel();
+  document.getElementById('output').innerHTML='Waiting for code execution...';
+  clearInterval(timer);
+  timer=setInterval(()=>{timeLeft--;document.getElementById('timer').textContent='⏱ '+timeLeft+'s';
+    if(timeLeft<=0){clearInterval(timer);if(isCoder)score-=10;else score+=20;nextRound();}
+  },1000);
+}
+
+function renderEditor(){
+  document.getElementById('editor').innerHTML=currentCode.map((line,i)=>{
+    let html=line.replace(/def |return |for |if |print|import/g,m=>`<span class="kw">${m}</span>`)
+      .replace(/"[^"]*"/g,m=>`<span class="str">${m}</span>`)
+      .replace(/\b\d+\b/g,m=>`<span class="num">${m}</span>`)
+      .replace(/#.*/g,m=>`<span class="cm">${m}</span>`);
+    if(line.includes('retrun')||line.includes('[')&&!line.includes(']'))html=`<span class="err">${html}</span>`;
+    return`<div class="line"><span class="ln">${i+1}</span><span class="code">${html||' '}</span></div>`;
+  }).join('');
+}
+
+function renderSabotagePanel(){
+  const panel=document.getElementById('sabPanel');
+  if(isCoder){
+    panel.innerHTML='<h4>Fix Mode</h4><p style="font-size:0.7rem;color:#585b70">Find and fix the bugs!<br>Click RUN when ready.</p>';
+    // Add fix buttons
+    panel.innerHTML+='<div class="sab-card" onclick="fixCode()"><div class="sab-name">🔧 Auto-Fix</div><div class="sab-desc">Attempt to fix one bug</div></div>';
+  }else{
+    panel.innerHTML='<h4>Sabotage Cards</h4>'+SABOTAGES.map((s,i)=>
+      `<div class="sab-card" onclick="applySabotage(${i})" id="sab${i}"><div class="sab-name">💣 ${s.name}</div><div class="sab-desc">${s.desc}</div></div>`
+    ).join('');
+  }
+}
+
+function applySabotage(i){
+  if(isCoder||bugsApplied>=2)return;
+  currentCode=SABOTAGES[i].action([...currentCode]);bugsApplied++;
+  document.getElementById('sab'+i).classList.add('used');
+  renderEditor();
+}
+
+function fixCode(){
+  if(!isCoder)return;
+  const ch=CHALLENGES[(round-1)%CHALLENGES.length];
+  // Restore one line
+  const broken=currentCode.findIndex((l,i)=>l!==ch.code[i]);
+  if(broken>=0)currentCode[broken]=ch.code[broken];
+  renderEditor();
+}
+
+function runCode(){
+  clearInterval(timer);
+  const out=document.getElementById('output');
+  // Simple check if code matches expected
+  const ch=CHALLENGES[(round-1)%CHALLENGES.length];
+  const isCorrect=currentCode.join('\n')===ch.code.join('\n');
+  if(isCoder){
+    if(isCorrect){score+=30;out.innerHTML='<div class="ok">✓ Output: '+currentAnswer+' — Code works! +30 points</div>';}
+    else{score-=10;out.innerHTML='<div class="fail">✗ Error: Code has bugs! -10 points</div>';}
+  }else{
+    if(!isCorrect){score+=20;out.innerHTML='<div class="ok">✓ Sabotage successful! AI couldn\'t fix it. +20 points</div>';}
+    else{score-=5;out.innerHTML='<div class="fail">✗ AI fixed the code! -5 points</div>';}
+  }
+  document.getElementById('score').textContent=score;
+  setTimeout(nextRound,1500);
+}
+
+function endGame(){
+  gameActive=false;document.getElementById('endScreen').classList.remove('hidden');
+  document.getElementById('endTitle').textContent=score>0?'🏆 Clean Build!':'💥 Build Failed!';
+  document.getElementById('endMsg').textContent=`Final Score: ${score} points over ${maxRounds} rounds`;
+  if(window.parent!==window)window.parent.postMessage({type:'score-submit',gameId:'syntax-strike',score:Math.max(0,score)},'*');
+}
+</script></body></html>

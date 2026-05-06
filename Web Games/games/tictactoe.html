@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Tic Tac Toe</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a1a;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:'Segoe UI',sans-serif;color:#e2e8f0;overflow:hidden}
+h2{font-size:1.2rem;margin-bottom:16px;color:#94a3b8}
+h2 b{color:#06b6d4}
+.mode-badge{font-size:0.75rem;padding:3px 10px;border-radius:12px;font-weight:600;background:rgba(124,58,237,0.2);color:#a78bfa;margin-left:8px}
+.board{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:300px;height:300px}
+.cell{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:2.5rem;font-weight:800;cursor:pointer;transition:all 0.2s}
+.cell:hover{background:rgba(255,255,255,0.08)}
+.cell.x{color:#06b6d4;text-shadow:0 0 15px rgba(6,182,212,0.5)}
+.cell.o{color:#f472b6;text-shadow:0 0 15px rgba(244,114,182,0.5)}
+.cell.win{background:rgba(124,58,237,0.2);border-color:rgba(124,58,237,0.5)}
+.status{margin-top:20px;font-size:1.1rem;min-height:32px;color:#94a3b8}
+.status b{color:#7c3aed}
+.btn{margin-top:16px;padding:10px 28px;border:none;border-radius:24px;background:linear-gradient(135deg,#7c3aed,#06b6d4);color:#fff;font-size:1rem;cursor:pointer;font-weight:600}
+.scores{display:flex;gap:24px;margin-bottom:20px}
+.scores div{text-align:center}
+.scores .label{font-size:0.7rem;text-transform:uppercase;color:#64748b;letter-spacing:1px}
+.scores .val{font-size:1.4rem;font-weight:700}
+.scores .val.x-color{color:#06b6d4}
+.scores .val.o-color{color:#f472b6}
+.scores .val.d-color{color:#64748b}
+</style>
+</head>
+<body>
+<div class="scores">
+  <div><div class="label" id="xLabel">You (X)</div><div class="val x-color" id="xWins">0</div></div>
+  <div><div class="label">Draw</div><div class="val d-color" id="draws">0</div></div>
+  <div><div class="label" id="oLabel">AI (O)</div><div class="val o-color" id="oWins">0</div></div>
+</div>
+<div class="board" id="board"></div>
+<div class="status" id="status">Your turn (X)</div>
+<button class="btn" onclick="init()">New Game</button>
+<script>
+const params=new URLSearchParams(window.location.search);
+const MP=parseInt(params.get('mp'))||1;
+const isMP=MP>=2;
+
+if(isMP){
+  document.getElementById('xLabel').textContent='Player 1 (X)';
+  document.getElementById('oLabel').textContent='Player 2 (O)';
+}
+
+let board,turn,gameOver,xWins=0,oWins=0,draws=0;
+const WINS=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+function init(){
+  board=Array(9).fill('');turn='X';gameOver=false;
+  document.getElementById('status').innerHTML=isMP?'Player 1\'s turn (<b>X</b>)':'Your turn (<b>X</b>)';
+  render();
+}
+function render(){
+  const el=document.getElementById('board');el.innerHTML='';
+  board.forEach((v,i)=>{
+    const c=document.createElement('div');
+    c.className='cell'+(v?' '+v.toLowerCase():'');
+    c.textContent=v;c.onclick=()=>play(i);
+    el.appendChild(c);
+  });
+}
+function play(i){
+  if(board[i]||gameOver)return;
+  if(isMP){
+    // 2 player local
+    board[i]=turn;
+    if(checkWin(turn)){endGame(turn);return;}
+    if(board.every(c=>c)){endGame(null);return;}
+    turn=turn==='X'?'O':'X';
+    document.getElementById('status').innerHTML=`${turn==='X'?'Player 1':'Player 2'}'s turn (<b>${turn}</b>)`;
+    render();
+  }else{
+    // vs AI
+    if(turn!=='X')return;
+    board[i]='X';
+    if(checkWin('X')){endGame('X');return;}
+    if(board.every(c=>c)){endGame(null);return;}
+    turn='O';document.getElementById('status').innerHTML='AI thinking...';
+    render();
+    setTimeout(()=>{aiMove();if(!gameOver){turn='X';document.getElementById('status').innerHTML='Your turn (<b>X</b>)';}render();},300);
+  }
+}
+function aiMove(){
+  let bestScore=-Infinity,bestMove;
+  for(let i=0;i<9;i++){
+    if(!board[i]){board[i]='O';const s=minimax(board,0,false);board[i]='';if(s>bestScore){bestScore=s;bestMove=i;}}
+  }
+  board[bestMove]='O';
+  if(checkWin('O')){endGame('O');return;}
+  if(board.every(c=>c)){endGame(null);return;}
+}
+function minimax(b,depth,isMax){
+  if(checkWinFor(b,'O'))return 10-depth;
+  if(checkWinFor(b,'X'))return depth-10;
+  if(b.every(c=>c))return 0;
+  if(isMax){let best=-Infinity;for(let i=0;i<9;i++){if(!b[i]){b[i]='O';best=Math.max(best,minimax(b,depth+1,false));b[i]='';}}return best;}
+  else{let best=Infinity;for(let i=0;i<9;i++){if(!b[i]){b[i]='X';best=Math.min(best,minimax(b,depth+1,true));b[i]='';}}return best;}
+}
+function checkWinFor(b,p){return WINS.some(w=>w.every(i=>b[i]===p));}
+function checkWin(p){
+  const w=WINS.find(w=>w.every(i=>board[i]===p));
+  if(w){render();w.forEach(i=>document.getElementById('board').children[i].classList.add('win'));return true;}
+  return false;
+}
+function endGame(winner){
+  gameOver=true;
+  if(winner==='X'){
+    xWins++;
+    document.getElementById('status').innerHTML=isMP?'<b>Player 1 wins!</b> 🎉':'<b>You win!</b> 🎉';
+  }else if(winner==='O'){
+    oWins++;
+    document.getElementById('status').innerHTML=isMP?'<b>Player 2 wins!</b> 🎉':'<b>AI wins!</b>';
+  }else{
+    draws++;document.getElementById('status').innerHTML='<b>Draw!</b>';
+  }
+  document.getElementById('xWins').textContent=xWins;
+  document.getElementById('oWins').textContent=oWins;
+  document.getElementById('draws').textContent=draws;
+}
+init();
+</script>
+</body>
+</html>

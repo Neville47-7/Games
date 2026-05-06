@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Minesweeper</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a1a;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:'Segoe UI',sans-serif;color:#e2e8f0;overflow:hidden;user-select:none}
+.hud{display:flex;gap:24px;margin-bottom:12px;font-size:1rem}
+.hud span{color:#94a3b8}.hud b{color:#34d399}
+.board{display:inline-grid;gap:2px;background:rgba(255,255,255,0.02);padding:6px;border-radius:8px;border:2px solid rgba(124,58,237,0.3)}
+.cell{width:32px;height:32px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:0.85rem;font-weight:700;cursor:pointer;transition:background 0.15s}
+.cell.hidden{background:rgba(255,255,255,0.08)}
+.cell.hidden:hover{background:rgba(255,255,255,0.15)}
+.cell.revealed{background:rgba(255,255,255,0.03);cursor:default}
+.cell.mine{background:rgba(239,68,68,0.3)}
+.cell.flagged::after{content:'🚩'}
+.c1{color:#06b6d4}.c2{color:#34d399}.c3{color:#ef4444}.c4{color:#7c3aed}
+.c5{color:#f97316}.c6{color:#06b6d4}.c7{color:#fff}.c8{color:#94a3b8}
+.msg{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;background:rgba(10,10,26,0.96);padding:32px 48px;border-radius:16px;border:1px solid rgba(124,58,237,0.3);z-index:10}
+.msg h2{font-size:1.8rem;margin-bottom:8px;background:linear-gradient(135deg,#7c3aed,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.msg p{color:#94a3b8;margin-bottom:16px}
+.msg button{padding:10px 28px;border:none;border-radius:24px;background:linear-gradient(135deg,#7c3aed,#06b6d4);color:#fff;font-size:1rem;cursor:pointer;font-weight:600}
+.diff{display:flex;gap:8px;margin-bottom:12px}
+.diff button{padding:6px 16px;border-radius:20px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;font-size:0.85rem;cursor:pointer}
+.diff button.active{background:linear-gradient(135deg,#7c3aed,#06b6d4);color:#fff;border-color:transparent}
+.hint{margin-top:10px;font-size:0.78rem;color:#64748b}
+</style>
+</head>
+<body>
+<div class="diff" id="diff">
+  <button class="active" onclick="setDiff(9,10)">Easy</button>
+  <button onclick="setDiff(12,25)">Medium</button>
+  <button onclick="setDiff(16,50)">Hard</button>
+</div>
+<div class="hud"><span>Mines: <b id="mineCount">10</b></span><span>Flags: <b id="flagCount">0</b></span></div>
+<div class="board" id="board"></div>
+<div class="hint">Left click: reveal • Right click: flag</div>
+<div class="msg" id="overScreen" style="display:none"><h2 id="overTitle">Game Over</h2><p id="overMsg"></p><button onclick="init()">Play Again</button></div>
+<script>
+let SIZE=9,MINES=10,board,revealed,flagged,gameOver,firstClick;
+function setDiff(s,m){
+  SIZE=s;MINES=m;
+  document.querySelectorAll('.diff button').forEach((b,i)=>{b.className=[[9,10],[12,25],[16,50]][i][0]===s?'active':'';});
+  init();
+}
+function init(){
+  document.getElementById('overScreen').style.display='none';
+  board=Array.from({length:SIZE},()=>Array(SIZE).fill(0));
+  revealed=Array.from({length:SIZE},()=>Array(SIZE).fill(false));
+  flagged=Array.from({length:SIZE},()=>Array(SIZE).fill(false));
+  gameOver=false;firstClick=true;
+  document.getElementById('mineCount').textContent=MINES;
+  document.getElementById('flagCount').textContent=0;
+  render();
+}
+function placeMines(sr,sc){
+  let placed=0;
+  while(placed<MINES){
+    const r=Math.floor(Math.random()*SIZE),c=Math.floor(Math.random()*SIZE);
+    if(board[r][c]!==-1&&!(Math.abs(r-sr)<=1&&Math.abs(c-sc)<=1)){board[r][c]=-1;placed++;}
+  }
+  for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++){
+    if(board[r][c]===-1)continue;
+    let cnt=0;
+    for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+      const nr=r+dr,nc=c+dc;
+      if(nr>=0&&nr<SIZE&&nc>=0&&nc<SIZE&&board[nr][nc]===-1)cnt++;
+    }
+    board[r][c]=cnt;
+  }
+}
+function reveal(r,c){
+  if(r<0||r>=SIZE||c<0||c>=SIZE||revealed[r][c]||flagged[r][c])return;
+  revealed[r][c]=true;
+  if(board[r][c]===0)for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++)reveal(r+dr,c+dc);
+}
+function render(){
+  const el=document.getElementById('board');
+  el.style.gridTemplateColumns=`repeat(${SIZE},32px)`;
+  el.innerHTML='';
+  for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++){
+    const cell=document.createElement('div');
+    if(revealed[r][c]){
+      cell.className='cell revealed'+(board[r][c]===-1?' mine':'');
+      if(board[r][c]===-1)cell.textContent='💣';
+      else if(board[r][c]>0){cell.textContent=board[r][c];cell.classList.add('c'+board[r][c]);}
+    }else{
+      cell.className='cell hidden'+(flagged[r][c]?' flagged':'');
+    }
+    cell.onclick=()=>handleClick(r,c);
+    cell.oncontextmenu=e=>{e.preventDefault();toggleFlag(r,c);};
+    el.appendChild(cell);
+  }
+}
+function handleClick(r,c){
+  if(gameOver||flagged[r][c])return;
+  if(firstClick){placeMines(r,c);firstClick=false;}
+  if(board[r][c]===-1){
+    gameOver=true;
+    for(let i=0;i<SIZE;i++)for(let j=0;j<SIZE;j++)if(board[i][j]===-1)revealed[i][j]=true;
+    render();
+    document.getElementById('overTitle').textContent='💥 Game Over';
+    document.getElementById('overMsg').textContent='You hit a mine!';
+    document.getElementById('overScreen').style.display='block';
+    return;
+  }
+  reveal(r,c);render();checkWin();
+}
+function toggleFlag(r,c){
+  if(gameOver||revealed[r][c])return;
+  flagged[r][c]=!flagged[r][c];
+  let fc=0;flagged.forEach(row=>row.forEach(v=>{if(v)fc++;}));
+  document.getElementById('flagCount').textContent=fc;
+  render();
+}
+function checkWin(){
+  let unrevealed=0;
+  for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++)if(!revealed[r][c])unrevealed++;
+  if(unrevealed===MINES){
+    gameOver=true;
+    document.getElementById('overTitle').textContent='🎉 You Win!';
+    document.getElementById('overMsg').textContent='All mines cleared!';
+    document.getElementById('overScreen').style.display='block';
+  }
+}
+init();
+</script>
+</body>
+</html>
